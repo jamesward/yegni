@@ -9,7 +9,7 @@ scalacOptions += "-Yexplicit-nulls"
 lazy val runIt = taskKey[Unit]("runIt")
 
 runIt := {
-  // fork := true
-  // outputStrategy := None
-  (Compile / runMain).toTask(" itwontfail").value
+  implicit val scalaRun = runner.value
+  val cp = (Runtime / fullClasspath).value.map(_.data)
+  sbt.Run.run("itwontfail", cp, Seq.empty, null).get
 }
