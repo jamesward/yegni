@@ -1,5 +1,4 @@
 
-
 @main def theseThingsWhoops =
   val things = List(SomeThing("foo"), SomeThing("bar"))
 

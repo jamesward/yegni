@@ -9,4 +9,11 @@ import scala.language.strictEquality
 
   given CanEqual[SomeThing, SomeThing] = CanEqual.derived
 
+  //println(things.filter(_ == anotherThing)) // does not work
   println(things.filter(_ == anotherThing.someThing))
+
+  /*
+  given CanEqual[SomeThing, AnotherThing] = CanEqual.derived
+
+  println(things.filter(_ == anotherThing))
+   */
