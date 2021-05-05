@@ -1,4 +1,6 @@
 import scala.language.strictEquality
+import scala.{main, List, CanEqual}
+import scala.Console.println
 
 @main def theseThingsSafe =
   val things = List(SomeThing("foo"), SomeThing("bar"))

@@ -1,3 +1,5 @@
+import scala.Console.println
+import scala.{main, List}
 
 @main def theseThingsWhoops =
   val things = List(SomeThing("foo"), SomeThing("bar"))

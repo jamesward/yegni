@@ -1,62 +1,34 @@
-import zio.{ZIO, UIO, RIO}
-import zio.system.env
-import zio.system.System
-import zio.ZManaged
-import zio.blocking
-import zio.blocking.Blocking
+import zio.{App, ExitCode, Task, ZEnv, ZIO}
+import zio.random.Random
+import zio.interop.catz.*
 
-import scala.util.Try
-import scala.util.Using
-import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
+import scala.{List, Nothing, PartialFunction, Unit}
 
-import java.net.InetSocketAddress
+import java.lang.String
+
+import org.http4s.{HttpRoutes, Request, Response}
+import org.http4s.implicits.*
+import org.http4s.dsl.Http4sDsl
+import org.http4s.server.Router
 
 object Flaky extends zio.App:
-  sealed trait PortError
-  case class InvalidPortValue(port: String) extends PortError
-  case class SecurityError(e: SecurityException) extends PortError
 
-  // Tries to read the `PORT` environment variable and convert it to a valid port value
-  // Defaults to 8080, only if there was no `PORT` env var
-  // A Char (uint16) is used to store the port value
-  // See: https://twitter.com/jroper/status/1217525231868239872
-  //
-  // todo: possibly read the default from the environment
-  //
+  val dsl = Http4sDsl[Task]
+  import dsl.*
 
-  opaque type Port = Char
+  def index(random: Random.Service): PartialFunction[Request[Task], Task[Response[Task]]] =
+    case GET -> Root =>
+      for
+        b <- random.nextBoolean
+        r <- if (b) Ok("hello, world") else InternalServerError()
+      yield r
 
-  val zioPort: ZIO[System, PortError, Port] =
-    def convertToCharOrFail(s: String): Either[InvalidPortValue, Port] =
-      val charTry = for
-        i <- Try(s.toInt)
-        if i >= Char.MinValue
-        if i <= Char.MaxValue
-      yield i.toChar
-
-      charTry.toEither.left.map(_ => InvalidPortValue(s))
-
-    def portToZio(s: Option[String]): ZIO[System, PortError, Port] =
-      val toEither = s.fold[Either[InvalidPortValue, Port]](Right(8080.toChar))(convertToCharOrFail)
-      ZIO.fromEither(toEither)
-
-    env("PORT").mapError(SecurityError.apply).flatMap(portToZio)
-
-  // todo: ZManaged ?
-  def server(port: Port, handler: (String, HttpHandler)): RIO[Blocking, Unit] =
-    val server = HttpServer.create(InetSocketAddress(port), 0)
-    server.createContext(handler._1, handler._2)
-    blocking.effectBlockingCancelable(server.start())(UIO.effectTotal(server.stop(5))) // waits up to 5 seconds for connections to close
-
-  val handler: HttpHandler = exchange =>
-    val response = "hello, world".getBytes
-    exchange.sendResponseHeaders(200, response.length)
-    Using(exchange.getResponseBody)(_.write(response))
+  def routes(random: Random.Service) = HttpRoutes.of[Task](index(random)).orNotFound
 
   val appLogic = for
-    port <- zioPort
-    _ <- server(port, ("/", handler)).forever
+    random <- ZIO.access[Random](_.get)
+    _ <- Http4Server.createHttp4Server(routes(random), Port(8081))
   yield ()
 
-  override def run(args:  List[String]): ZIO[zio.ZEnv, Nothing, zio.ExitCode] =
+  override def run(args:  List[String]): ZIO[ZEnv, Nothing, ExitCode] =
     appLogic.exitCode

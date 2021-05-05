@@ -1,11 +1,18 @@
 import java.io.OutputStream
 import java.io.IOException
 
-scalaVersion := "3.0.0-RC3"
+scalaVersion := "3.0.0-RC2"
 
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio" % "1.0.7",
+  "dev.zio"    %% "zio"                 % "1.0.6",
+  "org.http4s" %% "http4s-blaze-server" % "1.0.0-M21",
+  "org.http4s" %% "http4s-blaze-client" % "1.0.0-M21",
+  "org.http4s" %% "http4s-dsl"          % "1.0.0-M21",
+  "dev.zio"    %% "zio-interop-cats"    % "3.0.2.0",
+  "org.slf4j"  %  "slf4j-simple"        % "1.7.30",
 )
+
+scalacOptions += "-Yno-imports"
 
 //scalacOptions += "-language:strictEquality"
 
@@ -14,6 +21,8 @@ lazy val runIt = taskKey[Unit]("runIt")
 val badOutputStream = new OutputStream {
   def write(i: Int): Unit = throw new IOException("bad")
 }
+
+reStart / mainClass := Some("WebApp")
 
 runIt := {
   val opts = forkOptions.value.withOutputStrategy(OutputStrategy.CustomOutput(badOutputStream))
