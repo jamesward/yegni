@@ -1,0 +1,17 @@
+[[build.env]]
+name = "BP_NATIVE_IMAGE"
+value = "true"
+
+#[[build.env]]
+#name = "BP_SBT_BUILD_ARGUMENTS"
+#value = "universal:stage"
+
+#[[build.env]]
+#name = "BP_SBT_BUILT_ARTIFACT"
+#value = "target/universal/stage/lib/*-launcher.jar"
+
+#[[build.buildpacks]]
+#uri = "gcr.io/paketo-buildpacks/ca-certificates"
+
+#[[build.buildpacks]]
+#uri = "gcr.io/paketo-buildpacks/java-native-image"

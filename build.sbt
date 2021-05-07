@@ -1,6 +1,10 @@
 import java.io.OutputStream
 import java.io.IOException
 
+enablePlugins(LauncherJarPlugin)
+
+name := "yegni"
+
 scalaVersion := "3.0.0-RC2"
 
 libraryDependencies ++= Seq(
@@ -14,15 +18,19 @@ libraryDependencies ++= Seq(
 
 scalacOptions += "-Yno-imports"
 
-//scalacOptions += "-language:strictEquality"
+Compile / mainClass := Some("Flaky")
+
+Compile / packageDoc / publishArtifact := false
+
+Compile / doc / sources := Seq.empty
+
+reStart / mainClass := Some("WebApp")
 
 lazy val runIt = taskKey[Unit]("runIt")
 
 val badOutputStream = new OutputStream {
   def write(i: Int): Unit = throw new IOException("bad")
 }
-
-reStart / mainClass := Some("WebApp")
 
 runIt := {
   val opts = forkOptions.value.withOutputStrategy(OutputStrategy.CustomOutput(badOutputStream))
