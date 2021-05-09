@@ -10,6 +10,8 @@ libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-dsl"          % "1.0.0-M21",
   "dev.zio"    %% "zio-interop-cats"    % "3.0.2.0",
   "org.slf4j"  %  "slf4j-simple"        % "1.7.30",
+  "com.google.cloud.opentelemetry" % "exporter-trace" % "0.15.0",
+  "com.google.cloud.opentelemetry" % "exporter-metrics" % "0.15.0-alpha"
 )
 
 scalacOptions += "-Yno-imports"
