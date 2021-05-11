@@ -5,9 +5,18 @@ import com.google.cloud.opentelemetry.trace.{
     TraceConfiguration,
     TraceExporter
 }
-import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.{
+  OpenTelemetry,
+  GlobalOpenTelemetry
+}
 import io.opentelemetry.api.trace.{
     Tracer
+}
+import io.opentelemetry.context.Context
+import io.opentelemetry.context.propagation.{
+  TextMapGetter,
+  TextMapSetter,
+  TextMapPropagator
 }
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.trace.SdkTracerProvider
@@ -33,9 +42,41 @@ import scala.compiletime.{
 }
 
 
+
+import com.sun.net.httpserver.{HttpExchange, HttpHandler}
+
+
+
+
 opaque type Span = io.opentelemetry.api.trace.Span
 type Telemetry = Has[Telemetry.Service]
 object Telemetry:
+  object MyTextMapGetter extends TextMapGetter[HttpExchange]:
+    override def keys(ctx: HttpExchange) = ctx.getRequestHeaders.keySet
+    override def get(ctx: HttpExchange, key: String): String =
+      if ctx.getRequestHeaders.containsKey(key) then 
+        ctx.getRequestHeaders.get(key).get(0)
+      else ""
+  object MyTextMapSetter extends TextMapSetter[HttpExchange]:
+    override def set(ctx: HttpExchange, key: String, value: String): Unit =
+      ctx.getResponseHeaders.set(key,value)
+  def tracedHandler(tracer: Tracer, otel: OpenTelemetry)(handler: HttpHandler): HttpHandler =
+    exchange =>
+      val textPropagator = otel.getPropagators.getTextMapPropagator
+      textPropagator.extract(Context.current, exchange, MyTextMapGetter)
+      val span = tracer.spanBuilder(exchange.getRequestURI.toString).startSpan()
+      // TODO - context + w3c trace propogation.
+      span.setAttribute("component", "http")
+      span.setAttribute("http.method", exchange.getRequestMethod)
+      span.setAttribute("http.scheme", "http")      
+      try 
+        val current = span.makeCurrent()
+        try handler.handle(exchange)
+        finally current.close()
+      finally span.end()
+      
+
+
   trait Service:
     /** Constructs an open telemetry span. */
     def span(description: String): Span
@@ -72,3 +113,8 @@ object Telemetry:
       )        
     catch
       case e: IOException => ZLayer.fail(e)
+
+
+
+
+      
