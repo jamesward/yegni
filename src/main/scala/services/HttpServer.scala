@@ -1,6 +1,9 @@
 package services
 
-import java.lang.String
+import java.lang.{
+  String,
+  Throwable,
+}
 import java.io.IOException
 import scala.{
     Any,
@@ -131,6 +134,11 @@ val client = HttpClient.newBuilder.build
   server.start()
  */
 
-//object HttpClient:
-//  val client: ZIO[HttpContext, IOException, HttpResponse] =
-//    ZManaged.makeEffect(HttpClient.newBuilder.build)()
+object HttpClient:
+  import java.net.http.{
+    HttpClient => JvmHttpClient,
+    HttpRequest => JvmHttpRequest,
+    HttpResponse => JvmHttpResponse,
+  }
+  val client: ZManaged[Any, Throwable, JvmHttpClient] =
+    ZManaged.makeEffect(JvmHttpClient.newBuilder.build)(_ => ())
