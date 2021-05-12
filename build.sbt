@@ -24,7 +24,7 @@ scalacOptions += "-release:11"
 //scalacOptions += "-target:jvm-11"
 scalacOptions += "-Yno-imports"
 
-reStart / mainClass := Some("WebApp")
+reStart / mainClass := Some("Flaky")
 
 Compile / packageDoc / publishArtifact := false
 
