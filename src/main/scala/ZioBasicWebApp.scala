@@ -14,7 +14,8 @@ import zio.{
 
 object ZioBasicWebApp extends App:
   override def run(args: List[String]) =
-    HttpServer.serve(8080)(("/",  null)).exitCode
+    val handler = ZIO.succeed(new HttpResponse { val body = "hello, world" })
+    HttpServer.serve(8080)(("/",  handler)).exitCode
     /*
     val s = for
       client <- Asdf
