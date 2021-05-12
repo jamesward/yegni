@@ -11,9 +11,18 @@ Run the WebApp:
 ./sbt ~reStart
 ```
 
+Run Flaky with GraalVM Agent (to generate configs)
+```
+./sbt flakyGraalRun
+```
+
+Create a Flaky native image with GraalVM
+```
+./sbt flakyGraal
+```
+
 ## TODO
 
-- Flaky GraalVM
 - HttpClient ZIO
 - WebApp
 - WebApp GraalVM

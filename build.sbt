@@ -49,19 +49,27 @@ graalVMNativeImageOptions ++= Seq(
   "-H:+StackTrace",
   "-H:+TraceLoggingFeature",
   "-H:+ReportExceptionStackTraces",
-//  "--allow-incomplete-classpath",
+  "--allow-incomplete-classpath",
 //  "--report-unsupported-elements-at-runtime",
 )
 
-//GraalVMNativeImage / mainClass := Some("itwontfail")
-//GraalVMNativeImage / mainClass := Some("ItWontFailZ")
-//GraalVMNativeImage / mainClass := Some("Flaky")
-//GraalVMNativeImage / mainClass := Some("BasicServer")
-GraalVMNativeImage / mainClass := Some("BasicWebApp")
-//GraalVMNativeImage / mainClass := Some("BasicIO")
+// todo: a task for each
+GraalVMNativeImage / mainClass := Some("Flaky")
 
-//fork := true
-//run / javaOptions += s"-agentlib:native-image-agent=config-output-dir=src/graal"
+lazy val flakyGraal = taskKey[Unit]("flakyGraal")
+
+flakyGraal := {
+  (GraalVMNativeImage / packageBin).value
+}
+
+lazy val flakyGraalRun = taskKey[Unit]("flakyGraalRun")
+
+flakyGraalRun := {
+  val opts = forkOptions.value.withRunJVMOptions(Vector("-agentlib:native-image-agent=config-output-dir=src/graal"))
+  implicit val scalaRun = new ForkRun(opts)
+  val cp = (Runtime / fullClasspath).value.map(_.data)
+  sbt.Run.run("Flaky", cp, Seq.empty, streams.value.log).get
+}
 
 lazy val runIt = taskKey[Unit]("runIt")
 

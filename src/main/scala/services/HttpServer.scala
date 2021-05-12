@@ -14,6 +14,7 @@ import zio.{
   Layer,
   Has,
   ZLayer,
+  ZManaged,
   ZIO,
   RIO,
   Runtime,
@@ -94,3 +95,28 @@ object HttpServer:
         Using(exchange.getResponseBody)(_.write(body))
 
       a.fold(fail, success)
+
+/*
+val client = HttpClient.newBuilder.build
+
+  val handler: HttpHandler = exchange =>
+    val request = HttpRequest.newBuilder(URI("http://localhost:8081")).build
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString)
+    if (response.statusCode == 200)
+      exchange.sendResponseHeaders(200, response.body.length)
+      Using(exchange.getResponseBody)(_.write(response.body.toUpperCase.getBytes))
+    else
+      exchange.sendResponseHeaders(500, 0)
+      exchange.close()
+
+  server.createContext("/", handler)
+  server.setExecutor(null)
+
+  println(s"Listening at http://localhost:$port")
+
+  server.start()
+ */
+
+//object HttpClient:
+//  val client: ZIO[HttpContext, IOException, HttpResponse] =
+//    ZManaged.makeEffect(HttpClient.newBuilder.build)()

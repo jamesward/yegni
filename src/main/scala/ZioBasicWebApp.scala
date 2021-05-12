@@ -15,3 +15,13 @@ import zio.{
 object ZioBasicWebApp extends App:
   override def run(args: List[String]) =
     HttpServer.serve(8080)(("/",  null)).exitCode
+    /*
+    val s = for
+      client <- Asdf
+      handler <- Asdf
+      server <- Asdf(handler)
+    yield server
+
+    s.provideLayer(ot).exitCode
+    //HttpServer.serve(8080)(("/",  null)).exitCode
+     */
