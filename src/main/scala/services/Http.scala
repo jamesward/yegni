@@ -46,7 +46,7 @@ type HttpHandler = ZIO[HttpContext, IOException, HttpResponse]
 type HttpRoute = (String, HttpHandler)
 
 
-  
+
 
 object HttpServer:
   import com.sun.net.httpserver.{
@@ -113,32 +113,38 @@ object HttpServer:
 
       a.fold(fail, success)
 
-/*
-val client = HttpClient.newBuilder.build
 
-  val handler: HttpHandler = exchange =>
-    val request = HttpRequest.newBuilder(URI("http://localhost:8081")).build
-    val response = client.send(request, HttpResponse.BodyHandlers.ofString)
-    if (response.statusCode == 200)
-      exchange.sendResponseHeaders(200, response.body.length)
-      Using(exchange.getResponseBody)(_.write(response.body.toUpperCase.getBytes))
-    else
-      exchange.sendResponseHeaders(500, 0)
-      exchange.close()
-
-  server.createContext("/", handler)
-  server.setExecutor(null)
-
-  println(s"Listening at http://localhost:$port")
-
-  server.start()
- */
-
+type HttpClient = Has[HttpClient.Service]
 object HttpClient:
   import java.net.http.{
     HttpClient => JvmHttpClient,
     HttpRequest => JvmHttpRequest,
     HttpResponse => JvmHttpResponse,
   }
-  val client: ZManaged[Any, Throwable, JvmHttpClient] =
-    ZManaged.makeEffect(JvmHttpClient.newBuilder.build)(_ => ())
+  import java.net.URI
+
+  trait Service:
+    def send(url: String): ZIO[Any, Throwable, HttpResponse]
+
+  def send(url: String): ZIO[HttpClient, Throwable, HttpResponse] =
+    ZIO.accessM[HttpClient](_.get.send(url))
+
+  case class HttpClientLive() extends HttpClient.Service:
+    def send(url: String): ZIO[Any, Throwable, HttpResponse] =
+      val client = JvmHttpClient.newBuilder.build
+      // todo: URI creation can fail
+      val request = JvmHttpRequest.newBuilder(URI(url)).build
+      ZIO.effect {
+        client.send(request, JvmHttpResponse.BodyHandlers.ofString)
+      } flatMap { response =>
+        if (response.statusCode == 200)
+          ZIO.succeed {
+            new HttpResponse :
+              val body = response.body
+          }
+        else
+          ZIO.fail(new IOException(s"Request failed with ${response.statusCode}"))
+      }
+
+  val live: ZLayer[Any, Nothing, HttpClient] =
+    ZLayer.succeed(HttpClientLive())
