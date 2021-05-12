@@ -11,6 +11,16 @@ Run the WebApp:
 ./sbt ~reStart
 ```
 
+## TODO
+
+- Flaky GraalVM
+- HttpClient ZIO
+- WebApp
+- WebApp GraalVM
+- OpenTelemetry
+- OpenTelemetry w/ GraalVM
+
+## Notes
 
 Things can fail
  - microservice can be flaky or sometimes slow
