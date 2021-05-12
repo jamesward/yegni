@@ -43,7 +43,7 @@ type HttpHandler = ZIO[HttpContext, IOException, HttpResponse]
 type HttpRoute = (String, HttpHandler)
 
 
-
+  
 
 object HttpServer:
   import com.sun.net.httpserver.{
@@ -76,6 +76,13 @@ object HttpServer:
   // TODO - implement
   private def adaptHandler(handler: HttpHandler): JvmHttpHandler =
     exchange =>
+      // Grab Distirbuted trace
+      import io.opentelemetry.api.trace.StatusCode
+      HttpServerInstrumentation.extractContext(exchange)
+      // Start span for HTTP
+      val span = HttpServerInstrumentation.startHttpServerSpan(exchange)
+      // Start a timer
+
       val context = ZLayer.succeed {
         new HttpContext.Service {
           override def request: HttpRequest = new HttpRequest {}
@@ -88,11 +95,18 @@ object HttpServer:
         val body = cause.prettyPrint.getBytes
         exchange.sendResponseHeaders(500, body.length)
         Using(exchange.getResponseBody)(_.write(body))
+        // Stop Timer, record value
+        // End span with failure
+        span.setStatus(StatusCode.ERROR, cause.prettyPrint)
+        span.end()
 
       def success(response: HttpResponse): Unit =
         val body = response.body.getBytes
         exchange.sendResponseHeaders(200, body.length)
         Using(exchange.getResponseBody)(_.write(body))
+        // Stop TImer, record value
+        // End span
+        span.end()
 
       a.fold(fail, success)
 
