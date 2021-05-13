@@ -11,6 +11,7 @@ import java.net.InetSocketAddress
 import java.net.ProxySelector
 import java.time.Duration
 import java.net.URI
+import services.HttpServerInstrumentation
 
 @main def BasicWebApp =
 
@@ -21,7 +22,10 @@ import java.net.URI
   val client = HttpClient.newBuilder.build
 
   val handler: HttpHandler = exchange =>
-    val request = HttpRequest.newBuilder(URI("http://localhost:8081")).build
+    val request = 
+      val builder = HttpRequest.newBuilder(URI("http://localhost:8081"))
+      HttpServerInstrumentation.injectContext(builder)
+      builder.build
     val response = client.send(request, HttpResponse.BodyHandlers.ofString)
     if (response.statusCode == 200)
       exchange.sendResponseHeaders(200, response.body.length)

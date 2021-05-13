@@ -44,6 +44,7 @@ import scala.compiletime.{
 
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler}
+import java.net.http.HttpRequest
 
 
 object HttpServerInstrumentation:
@@ -83,8 +84,14 @@ object HttpServerInstrumentation:
       if ctx.getRequestHeaders.containsKey(key) then
         ctx.getRequestHeaders.get(key).get(0)
       else ""
-  object MyTextMapSetter extends TextMapSetter[HttpExchange]:
-    override def set(ctx: HttpExchange, key: String, value: String): Unit =
-      ctx.getResponseHeaders.set(key,value)
+
+
+  /** Injects the distributed trace context into HTTP requests. */
+  def injectContext(req: HttpRequest.Builder): HttpRequest.Builder =
+    textPropagator.inject(Context.current, req, MyTextMapSetter)
+    req
+  object MyTextMapSetter extends TextMapSetter[HttpRequest.Builder]:
+    override def set(ctx: HttpRequest.Builder, key: String, value: String): Unit =
+      ctx.setHeader(key, value)
 
 

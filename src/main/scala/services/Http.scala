@@ -84,7 +84,7 @@ object HttpServer:
       HttpServerInstrumentation.extractContext(exchange)
       // Start span for HTTP
       val span = HttpServerInstrumentation.startHttpServerSpan(exchange)
-      // Start a timer
+      // TODO: Start a timer      
 
       val context = ZLayer.succeed {
         new HttpContext.Service {
@@ -92,7 +92,8 @@ object HttpServer:
         }
       }
 
-      val a = Runtime.default.unsafeRunSync(handler.provideLayer(context))
+      val a = Using.resource(span.makeCurrent)(_ =>
+        Runtime.default.unsafeRunSync(handler.provideLayer(context)))
 
       def fail(cause: Cause[IOException]): Unit =
         val body = cause.prettyPrint.getBytes
