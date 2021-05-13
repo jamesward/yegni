@@ -1,3 +1,4 @@
+# todo: gcs-cacher
 # todo: auto CLIENT_URL & network topology
 steps:
 
@@ -44,6 +45,7 @@ steps:
       - 'COMMIT_SHA=$COMMIT_SHA'
       - 'IMAGE_NAME=$REPO_NAME-webapp'
       - 'IMAGE_VERSION=$COMMIT_SHA'
+      - 'DEPLOY_OPTS=--update-env-vars=CLIENT_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/'
       - 'REGION=us-central1'
 
 options:
