@@ -4,7 +4,7 @@ import scala.{
   Any,
   Boolean,
   List,
-  Nothing
+  Nothing,
 }
 import scala.Predef.ArrowAssoc
 import java.lang.String

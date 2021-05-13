@@ -48,6 +48,7 @@ import com.sun.net.httpserver.{HttpExchange, HttpHandler}
 
 object HttpServerInstrumentation:
   private def makeTracePipeline(): OpenTelemetry =
+    // todo: this silently fails if the project is not set
     val config = TraceConfiguration.builder.build()
     val exporter = TraceExporter.createWithConfiguration(config)
     val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()
@@ -60,8 +61,8 @@ object HttpServerInstrumentation:
   /** Extract distributed trace/span ids from http headers. */
   def extractContext(exchange: HttpExchange) =
     textPropagator.extract(Context.current, exchange, MyTextMapGetter)
-  
-  /** Bounds the handling of an HTTP span. 
+
+  /** Bounds the handling of an HTTP span.
    *
    *  This is not zio friendly as it expects the complete handling of the
    *  HTTP exchange to happen within `work`.
@@ -78,7 +79,7 @@ object HttpServerInstrumentation:
   object MyTextMapGetter extends TextMapGetter[HttpExchange]:
     override def keys(ctx: HttpExchange) = ctx.getRequestHeaders.keySet
     override def get(ctx: HttpExchange, key: String): String =
-      if ctx.getRequestHeaders.containsKey(key) then 
+      if ctx.getRequestHeaders.containsKey(key) then
         ctx.getRequestHeaders.get(key).get(0)
       else ""
   object MyTextMapSetter extends TextMapSetter[HttpExchange]:
@@ -86,4 +87,3 @@ object HttpServerInstrumentation:
       ctx.getResponseHeaders.set(key,value)
 
 
-      

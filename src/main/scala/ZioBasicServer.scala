@@ -1,16 +1,19 @@
 import services._
+
 import scala.{
-    Any,
-    Nothing,
+  Any,
+  Nothing,
 }
 import scala.collection.immutable.List
 import java.lang.String
 import zio.{
-    App,
-    ExitCode,
-    ZIO,
-    ZEnv,
+  App,
+  ExitCode,
+  ZEnv,
+  ZIO,
 }
+
+import java.io.IOException
 
 object ZioBasicServer extends App:
   override def run(args: List[String]) =

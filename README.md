@@ -3,6 +3,8 @@ YEGNI
 
 Run the Flaky Server:
 ```
+export GOOGLE_CLOUD_PROJECT=YOUR_GCP_PROJECT
+export GOOGLE_APPLICATION_CREDENTIALS=YOUR_SERVICE_ACCOUNT_JSON
 ./sbt "runMain Flaky"
 ```
 
