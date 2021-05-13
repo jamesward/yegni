@@ -10,6 +10,8 @@ export GOOGLE_APPLICATION_CREDENTIALS=YOUR_SERVICE_ACCOUNT_JSON
 
 Run the WebApp:
 ```
+export GOOGLE_CLOUD_PROJECT=YOUR_GCP_PROJECT
+export GOOGLE_APPLICATION_CREDENTIALS=YOUR_SERVICE_ACCOUNT_JSON
 ./sbt ~reStart
 ```
 
@@ -23,13 +25,26 @@ Create a Flaky native image with GraalVM
 ./sbt flakyGraal
 ```
 
+```
+docker build -t yegni-flaky -f flaky.Dockerfile .
+```
+
+```
+export GOOGLE_CLOUD_PROJECT=YOUR_GCP_PROJECT
+export GOOGLE_APPLICATION_CREDENTIALS=YOUR_SERVICE_ACCOUNT_JSON
+docker run -it \
+  -p8080:8080 \
+  -eGOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT \
+  -eGOOGLE_APPLICATION_CREDENTIALS=/certs/svc_account.json \
+  -v$GOOGLE_APPLICATION_CREDENTIALS:/certs/svc_account.json \
+  yegni-flaky
+```
+
 ## TODO
 
-- HttpClient ZIO
-- WebApp
 - WebApp GraalVM
-- OpenTelemetry
 - OpenTelemetry w/ GraalVM
+- Scala lazy val unsafe GraalVM weirdness (bug?)
 
 ## Notes
 

@@ -54,6 +54,7 @@ object HttpServerInstrumentation:
     val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()
     OpenTelemetrySdk.builder().setTracerProvider(
       SdkTracerProvider.builder().addSpanProcessor(batcher).build()).build()
+
   val sdk = makeTracePipeline()
   val httpTracer = sdk.getTracer("zio-jvm-http", "1.0")
   val textPropagator = sdk.getPropagators.getTextMapPropagator

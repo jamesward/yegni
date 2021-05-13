@@ -32,8 +32,7 @@ import zio.internal.Platform
 
 
 trait HttpRequest
-trait HttpResponse:
-  val body: String
+case class HttpResponse(body: String)
 type HttpContext = Has[HttpContext.Service]
 object HttpContext:
   trait Service:
@@ -67,9 +66,10 @@ object HttpServer:
     object lock
     server.start()
     def stop(): Unit =
+      scala.Console.println("stop")
       try server.stop(0)
       finally lock.notifyAll()
-    def block(): Unit =
+    def block(): Unit = ()
       lock.synchronized {
           lock.wait()
       }
@@ -124,24 +124,24 @@ object HttpClient:
   import java.net.URI
 
   trait Service:
-    def send(url: String): ZIO[Any, Throwable, HttpResponse]
+    def send(url: String): ZIO[Any, IOException, HttpResponse]
 
-  def send(url: String): ZIO[HttpClient, Throwable, HttpResponse] =
+  def send(url: String): ZIO[HttpClient, IOException, HttpResponse] =
     ZIO.accessM[HttpClient](_.get.send(url))
 
   case class HttpClientLive() extends HttpClient.Service:
-    def send(url: String): ZIO[Any, Throwable, HttpResponse] =
+    def send(url: String): ZIO[Any, IOException, HttpResponse] =
       val client = JvmHttpClient.newBuilder.build
       // todo: URI creation can fail
       val request = JvmHttpRequest.newBuilder(URI(url)).build
       ZIO.effect {
         client.send(request, JvmHttpResponse.BodyHandlers.ofString)
+      } refineOrDie {
+        case t: Throwable =>
+          new IOException(t)
       } flatMap { response =>
         if (response.statusCode == 200)
-          ZIO.succeed {
-            new HttpResponse :
-              val body = response.body
-          }
+          ZIO.succeed(HttpResponse(response.body))
         else
           ZIO.fail(new IOException(s"Request failed with ${response.statusCode}"))
       }

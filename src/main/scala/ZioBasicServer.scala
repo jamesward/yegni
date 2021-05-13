@@ -17,5 +17,7 @@ import java.io.IOException
 
 object ZioBasicServer extends App:
   override def run(args: List[String]) =
-    val handler = ZIO.succeed(new HttpResponse { val body = "hello, world" })
+    val handler: ZIO[Any, Nothing, HttpResponse] =
+      ZIO.succeed(HttpResponse("hello, world"))
+
     HttpServer.serve(8080)(("/",  handler)).exitCode

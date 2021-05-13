@@ -1,23 +1,33 @@
 import services._
-import zio.{App, ExitCode, ZEnv, ZIO, ZLayer}
-
+import zio.{
+  App,
+  ExitCode,
+  ZEnv,
+  ZIO,
+  ZLayer,
+}
+import zio.system.env
 import java.io.IOException
-import java.lang.{String, Throwable}
-import scala.collection.immutable.List
-import scala.{Any, Nothing}
+import java.lang.String
+import scala.List
+import scala.Predef.{
+  ArrowAssoc,
+  augmentString,
+}
 
 object ZioWebApp extends App:
   override def run(args: List[String]) =
-    val httpContext = ZLayer.succeed {
-      new HttpContext.Service {
-        override def request: HttpRequest = new HttpRequest {}
-      }
-    }
+    def upper(resp: HttpResponse): HttpResponse =
+      resp.copy(body = resp.body.toUpperCase)
 
-    val handler = HttpClient.send("http://localhost:8080").map { resp =>
-      new HttpResponse { val body = resp.body.toUpperCase }
-    }.provideSomeLayer(HttpClient.live).provideLayer(httpContext).mapError { e =>
-      new IOException(e)
-    }
+    def handler(url: String): HttpHandler =
+      HttpClient.send(url).map(upper).provideSomeLayer(HttpClient.live)
 
-    HttpServer.serve(8081)(("/",  handler)).exitCode
+    val server = for
+      port <- env("PORT")
+      url  <- env("CLIENT_URL")
+      route = "/" -> handler(url.getOrElse("http://localhost:8080"))
+      s    <- HttpServer.serve(port.map(_.toInt).getOrElse(8081))(route)
+    yield s
+
+    server.exitCode

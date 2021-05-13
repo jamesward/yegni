@@ -1,0 +1,50 @@
+# todo: auto CLIENT_URL & network topology
+steps:
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$REPO_NAME-flaky:$COMMIT_SHA', '-f', 'flaky.Dockerfile', '.' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/$REPO_NAME-flaky:$COMMIT_SHA' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'tag', 'gcr.io/$PROJECT_ID/$REPO_NAME-flaky:$COMMIT_SHA', 'gcr.io/$PROJECT_ID/$REPO_NAME-flaky:latest' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/$REPO_NAME-flaky:latest' ]
+
+  - name: ghcr.io/jamesward/easycloudrun
+    entrypoint: deploy
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+      - 'BUILD_ID=$BUILD_ID'
+      - 'COMMIT_SHA=$COMMIT_SHA'
+      - 'IMAGE_NAME=$REPO_NAME-flaky'
+      - 'IMAGE_VERSION=$COMMIT_SHA'
+      - 'REGION=us-central1'
+
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/$REPO_NAME-webapp:$COMMIT_SHA', '-f', 'webapp.Dockerfile', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/$REPO_NAME-webapp:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['tag', 'gcr.io/$PROJECT_ID/$REPO_NAME-webapp:$COMMIT_SHA', 'gcr.io/$PROJECT_ID/$REPO_NAME-webapp:latest']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/$REPO_NAME-webapp:latest']
+
+  - name: ghcr.io/jamesward/easycloudrun
+    entrypoint: deploy
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+      - 'BUILD_ID=$BUILD_ID'
+      - 'COMMIT_SHA=$COMMIT_SHA'
+      - 'IMAGE_NAME=$REPO_NAME-webapp'
+      - 'IMAGE_VERSION=$COMMIT_SHA'
+      - 'REGION=us-central1'
+
+options:
+  machineType: 'N1_HIGHCPU_32'

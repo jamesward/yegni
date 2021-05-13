@@ -22,7 +22,7 @@ object Flaky extends App:
   def flaky(random: Random.Service): ZIO[HttpContext, IOException, HttpResponse] =
     def succeedOrFail(succeed: Boolean) =
       if (succeed)
-        ZIO.succeed(new HttpResponse { val body = "hello, world" })
+        ZIO.succeed(HttpResponse("hello, world"))
       else
         ZIO.fail(new IOException("erggg"))
 
