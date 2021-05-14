@@ -74,6 +74,7 @@ object HttpServerInstrumentation:
     span.setAttribute("component", "http")
     span.setAttribute("http.method", exchange.getRequestMethod)
     span.setAttribute("http.scheme", "http")
+    span.setAttribute("http.host", exchange.getLocalAddress.getHostString)
     // TODO - more attributes/semantic conventions
     span
 

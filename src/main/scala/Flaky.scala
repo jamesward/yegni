@@ -32,7 +32,7 @@ object Flaky extends App:
     val server = for
       random <- ZIO.access[Random](_.get)
       handler = flaky(random)
-      s <- HttpServer.serve(8080)("/" -> handler)
+      s <- HttpServer.serve(8080)("/api" -> handler)
     yield s
 
     server.exitCode

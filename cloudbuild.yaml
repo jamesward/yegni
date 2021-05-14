@@ -45,7 +45,7 @@ steps:
       - 'COMMIT_SHA=$COMMIT_SHA'
       - 'IMAGE_NAME=$REPO_NAME-webapp'
       - 'IMAGE_VERSION=$COMMIT_SHA'
-      - 'DEPLOY_OPTS=--update-env-vars=CLIENT_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/'
+      - 'DEPLOY_OPTS=--update-env-vars=CLIENT_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/api'
       - 'REGION=us-central1'
 
 options:

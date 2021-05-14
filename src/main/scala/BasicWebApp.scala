@@ -23,7 +23,7 @@ import services.HttpServerInstrumentation
 
   val handler: HttpHandler = exchange =>
     val request = 
-      val builder = HttpRequest.newBuilder(URI("http://localhost:8081"))
+      val builder = HttpRequest.newBuilder(URI("http://localhost:8081/api"))
       HttpServerInstrumentation.injectContext(builder)
       builder.build
     val response = client.send(request, HttpResponse.BodyHandlers.ofString)

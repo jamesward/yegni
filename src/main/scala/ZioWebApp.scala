@@ -26,7 +26,7 @@ object ZioWebApp extends App:
     val server = for
       port <- env("PORT")
       url  <- env("CLIENT_URL")
-      route = "/" -> handler(url.getOrElse("http://localhost:8080"))
+      route = "/" -> handler(url.getOrElse("http://localhost:8080/api"))
       s    <- HttpServer.serve(port.map(_.toInt).getOrElse(8081))(route)
     yield s
 
