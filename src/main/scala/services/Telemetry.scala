@@ -75,6 +75,10 @@ object HttpServerInstrumentation:
     span.setAttribute("http.method", exchange.getRequestMethod)
     span.setAttribute("http.scheme", "http")
     span.setAttribute("http.host", exchange.getLocalAddress.getHostString)
+    for
+      (attr, env) <- scala.Seq(("service.name", "K_SERVICE"), ("service.version", "K_REVISION"))
+      value <- scala.sys.env.get(env)
+    do span.setAttribute(attr, value)
     // TODO - more attributes/semantic conventions
     span
 
