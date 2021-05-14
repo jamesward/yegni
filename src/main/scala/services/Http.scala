@@ -110,6 +110,7 @@ object HttpServer:
         Using(exchange.getResponseBody)(_.write(body))
         // Stop TImer, record value
         // End span
+        span.setStatus(StatusCode.OK)
         span.end()
 
       a.fold(fail, success)
