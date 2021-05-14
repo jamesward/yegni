@@ -132,10 +132,12 @@ object HttpClient:
 
   case class HttpClientLive() extends HttpClient.Service:
     def send(url: String): ZIO[Any, IOException, HttpResponse] =
-      val client = JvmHttpClient.newBuilder.build
       // todo: URI creation can fail
-      val request = JvmHttpRequest.newBuilder(URI(url)).build
       ZIO.effect {
+        val client = JvmHttpClient.newBuilder.build
+        val builder = JvmHttpRequest.newBuilder(URI(url))
+        HttpServerInstrumentation.injectContext(builder)
+        val request = builder.build
         client.send(request, JvmHttpResponse.BodyHandlers.ofString)
       } refineOrDie {
         case t: Throwable =>
