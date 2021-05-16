@@ -23,6 +23,7 @@ object ZioWebApp extends App:
     def handler(url: String): HttpHandler =
       HttpClient.send(url).map(upper).provideSomeLayer(HttpClient.live)
 
+    java.lang.System.err.println("Starting server!")
     val server = for
       port <- env("PORT")
       url  <- env("CLIENT_URL")

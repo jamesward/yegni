@@ -10,7 +10,7 @@ import io.opentelemetry.api.{
   GlobalOpenTelemetry
 }
 import io.opentelemetry.api.trace.{
-    Tracer, Span
+    Tracer, Span, SpanContext, TraceFlags, TraceState
 }
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.propagation.{
@@ -31,38 +31,73 @@ import scala.{
   Unit,
   Int,
   Long,
-  Double
+  Double,
+  Array
 }
 import zio.{
   Layer,
   Has,
   ZLayer,
-  ZIO
+  ZIO,
+  Runtime
 }
+import zio.internal.Executor
 import scala.compiletime.{
   erasedValue
 }
+import scala.concurrent.ExecutionContext
+import java.lang.Throwable
+import java.lang.Runnable
 
 
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler}
 import java.net.http.HttpRequest
 
+// type TelemetryContext = Has[TelemetryContext]
+// object TelemetryContext:
+//   trait Service:
+//     def extract[T](request: T): ZIO[TelemetryContext, Nothing, Unit]
+
+
+//   def current: ZIO{Any, Nothing, TelemetryContext}
+  
+
 
 object HttpServerInstrumentation:
+  private def propagators = ContextPropagators.create(
+        TextMapPropagator.composite(
+          W3CTraceContextPropagator.getInstance(),
+          CloudTraceContextPropagation))
   private def makeTracePipeline(): OpenTelemetry =
-    // todo: this silently fails if the project is not set
-    val config = TraceConfiguration.builder.build()
-    val exporter = TraceExporter.createWithConfiguration(config)
-    val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()
-    OpenTelemetrySdk.builder()
-    .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
-    .setTracerProvider(
-      SdkTracerProvider.builder().addSpanProcessor(batcher).build()).build()
+    try
+      // todo: this silently fails if the project is not set
+      val config = TraceConfiguration.builder.build()
+      val exporter = TraceExporter.createWithConfiguration(config)
+      val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()
+      OpenTelemetrySdk.builder()
+      .setPropagators(propagators)
+      .setTracerProvider(
+        SdkTracerProvider.builder().addSpanProcessor(batcher).build()).build()
+    catch
+      case e =>
+        java.lang.System.err.println("Failed to configure OpenTelemetry to talk to GCP.")
+        e.printStackTrace()
+        java.lang.System.err.println("... Continuing without telemetry.")
+        OpenTelemetrySdk.builder().build
 
   val sdk = makeTracePipeline()
   val httpTracer = sdk.getTracer("zio-jvm-http", "1.0")
   val textPropagator = sdk.getPropagators.getTextMapPropagator
+
+  /** Injects context propagation onto ZIO. */
+  def instrumentZio[Env](r: Runtime[Env]): Runtime[Env] =
+    // For now, just force all threads to run synchronously.
+    r.withExecutor(Executor.fromExecutionContext(Int.MaxValue)(
+      new ExecutionContext:
+        override def execute(r: Runnable): Unit = r.run()
+        override def reportFailure(cause: Throwable): Unit = cause.printStackTrace()
+    ))
 
   /** Extract distributed trace/span ids from http headers. */
   def extractContext(exchange: HttpExchange) =
@@ -101,6 +136,31 @@ object HttpServerInstrumentation:
     req
   object MyTextMapSetter extends TextMapSetter[HttpRequest.Builder]:
     override def set(ctx: HttpRequest.Builder, key: String, value: String): Unit =
-      ctx.setHeader(key, value)
+      ctx.header(key, value)
 
 
+object CloudTraceContextPropagation extends TextMapPropagator:
+  import scala.jdk.CollectionConverters._
+  val myKey = "X-Cloud-Trace-Context"
+  override val fields = scala.collection.immutable.Seq(myKey).asJava
+  override def inject[C](context: Context, carrier: C, setter: TextMapSetter[C]): Unit =
+    if context != null && setter != null then
+      val current = Span.fromContext(context)
+      if current.getSpanContext.isValid then
+        val sampled = if current.getSpanContext.isSampled then 1 else 0
+        val value = s"${current.getSpanContext.getTraceId}/${current.getSpanContext.getSpanId};o=${sampled}"
+        setter.set(carrier, myKey, value)
+  override def extract[C](context: Context, carrier: C, getter: TextMapGetter[C]): Context =
+    // TODO - extract span.
+    if 
+      context != null &&
+      getter != null &&
+      getter.keys(carrier).asScala.exists(_ == myKey) 
+    then
+      val value = getter.get(carrier, myKey)
+      // Now parse the value.
+      val Array(trace, rest) = value.split("/")
+      val Array(span, sampled) = value.split(";o=")
+      val parent = SpanContext.createFromRemoteParent(trace, span, TraceFlags.getDefault, TraceState.getDefault)
+      context.`with`(Span.wrap(parent))
+    else context

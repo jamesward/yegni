@@ -73,15 +73,25 @@ object HttpServer:
       lock.synchronized {
           lock.wait()
       }
+    java.lang.System.err.println("Started the server!")
     effectBlockingCancelable(block())(ZIO.effectTotal(stop()))
 
 
   // TODO - implement
   private def adaptHandler(handler: HttpHandler): JvmHttpHandler =
     exchange =>
+      java.lang.System.err.println("Starting http handler")
       // Grab Distirbuted trace
       import io.opentelemetry.api.trace.StatusCode
-      HttpServerInstrumentation.extractContext(exchange)
+      try HttpServerInstrumentation.extractContext(exchange)
+      catch
+        case e: java.lang.Throwable =>
+          java.lang.System.err.println("Failed to extract context!")
+          e.printStackTrace()
+      java.lang.System.err.println(s"Done extracting context")
+      import io.opentelemetry.api.trace.Span
+      java.lang.System.err.println("Found existing span: " + Span.current)
+
       // Start span for HTTP
       val span = HttpServerInstrumentation.startHttpServerSpan(exchange)
       // TODO: Start a timer      
@@ -91,9 +101,11 @@ object HttpServer:
           override def request: HttpRequest = new HttpRequest {}
         }
       }
-
+      java.lang.System.err.println(s"Running logic for request: $span")
       val a = Using.resource(span.makeCurrent)(_ =>
-        Runtime.default.unsafeRunSync(handler.provideLayer(context)))
+        HttpServerInstrumentation.instrumentZio(Runtime.default)
+        //Runtime.default
+        .unsafeRunSync(handler.provideLayer(context)))
 
       def fail(cause: Cause[IOException]): Unit =
         val body = cause.prettyPrint.getBytes
@@ -139,6 +151,7 @@ object HttpClient:
         val builder = JvmHttpRequest.newBuilder(URI(url))
         HttpServerInstrumentation.injectContext(builder)
         val request = builder.build
+        java.lang.System.err.println(request.headers.toString)
         client.send(request, JvmHttpResponse.BodyHandlers.ofString)
       } refineOrDie {
         case t: Throwable =>
