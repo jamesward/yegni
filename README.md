@@ -70,3 +70,16 @@ Observability
 Retry
 
 
+
+
+## How to send trace context
+
+```
+curl localhost:8081 -H "x-cloud-trace-context: 105445aa7843bc8bf206b12000100000/0000000000000021;o=1"
+```
+
+or
+
+```
+curl localhost:8081 -H "traceparent:  00-ff000000000000000000000000000041-ff00000000000041-01"
+```

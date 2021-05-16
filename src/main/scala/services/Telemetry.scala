@@ -164,6 +164,8 @@ object CloudTraceContextPropagation extends TextMapPropagator:
     if 
       context != null &&
       getter != null &&
+      // If anotehr propagator has filled context, don't also fill here.
+      !Span.fromContext(context).getSpanContext.isRemote &&
       !getter.get(carrier, myKey).isEmpty
     then
       java.lang.System.err.println("Found cloud trace context, extracting...")
