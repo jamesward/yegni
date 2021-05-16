@@ -54,6 +54,8 @@ import java.lang.Runnable
 import com.sun.net.httpserver.{HttpExchange, HttpHandler}
 import java.net.http.HttpRequest
 
+import scala.jdk.CollectionConverters._
+
 // type TelemetryContext = Has[TelemetryContext]
 // object TelemetryContext:
 //   trait Service:
@@ -84,7 +86,7 @@ object HttpServerInstrumentation:
         java.lang.System.err.println("Failed to configure OpenTelemetry to talk to GCP.")
         e.printStackTrace()
         java.lang.System.err.println("... Continuing without telemetry.")
-        OpenTelemetrySdk.builder().build
+        OpenTelemetrySdk.builder().setPropagators(propagators).build
 
   val sdk = makeTracePipeline()
   val httpTracer = sdk.getTracer("zio-jvm-http", "1.0")
@@ -123,11 +125,18 @@ object HttpServerInstrumentation:
 
 
   object MyTextMapGetter extends TextMapGetter[HttpExchange]:
-    override def keys(ctx: HttpExchange) = ctx.getRequestHeaders.keySet
+    override def keys(ctx: HttpExchange) =
+      ctx.getRequestHeaders.keySet.asScala.map(normalizeFrom).asJava
     override def get(ctx: HttpExchange, key: String): String =
       if ctx.getRequestHeaders.containsKey(key) then
-        ctx.getRequestHeaders.get(key).get(0)
+        ctx.getRequestHeaders.get(normalizeTo(key)).get(0)
       else ""
+    private def normalizeFrom(key: String): String = key.toLowerCase
+    private def normalizeTo(key: String): String =
+      if key.length > 0 then
+        s"${java.lang.Character.toUpperCase(key.charAt(0))}${key.substring(1).toLowerCase}"
+      else key
+    
 
 
   /** Injects the distributed trace context into HTTP requests. */
@@ -140,8 +149,7 @@ object HttpServerInstrumentation:
 
 
 object CloudTraceContextPropagation extends TextMapPropagator:
-  import scala.jdk.CollectionConverters._
-  val myKey = "X-Cloud-Trace-Context"
+  val myKey = "x-cloud-trace-context"
   override val fields = scala.collection.immutable.Seq(myKey).asJava
   override def inject[C](context: Context, carrier: C, setter: TextMapSetter[C]): Unit =
     if context != null && setter != null then
@@ -151,16 +159,19 @@ object CloudTraceContextPropagation extends TextMapPropagator:
         val value = s"${current.getSpanContext.getTraceId}/${current.getSpanContext.getSpanId};o=${sampled}"
         setter.set(carrier, myKey, value)
   override def extract[C](context: Context, carrier: C, getter: TextMapGetter[C]): Context =
+    java.lang.System.err.println(s"Extracting context with keys: ${getter.keys(carrier).asScala}")
     // TODO - extract span.
     if 
       context != null &&
       getter != null &&
-      getter.keys(carrier).asScala.exists(_ == myKey) 
+      !getter.get(carrier, myKey).isEmpty
     then
+      java.lang.System.err.println("Found cloud trace context, extracting...")
       val value = getter.get(carrier, myKey)
       // Now parse the value.
       val Array(trace, rest) = value.split("/")
       val Array(span, sampled) = value.split(";o=")
       val parent = SpanContext.createFromRemoteParent(trace, span, TraceFlags.getDefault, TraceState.getDefault)
+      java.lang.System.err.println(s"Distributed trace: $trace")
       context.`with`(Span.wrap(parent))
     else context

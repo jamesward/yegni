@@ -89,7 +89,7 @@ object HttpServer:
           java.lang.System.err.println("Failed to extract context!")
           e.printStackTrace()
       java.lang.System.err.println(s"Done extracting context")
-      import io.opentelemetry.api.trace.Span
+      import io.opentelemetry.api.trace.{Span}
       java.lang.System.err.println("Found existing span: " + Span.current)
 
       // Start span for HTTP
