@@ -96,6 +96,15 @@ object HttpServer:
       val span = 
         Using.resource(otelCtx.makeCurrent)(_ => HttpServerInstrumentation.startHttpServerSpan(exchange))
       // TODO: Start a timer      
+      import io.opentelemetry.api.common.Attributes
+      import scala.jdk.CollectionConverters._
+      val attrBuilder = Attributes.builder
+      attrBuilder.put("method", exchange.getRequestMethod)
+      for 
+        (hdr, value) <- exchange.getRequestHeaders.asScala
+      do attrBuilder.put(hdr, value.asScala.headOption.getOrElse(""))
+      span.addEvent("request", attrBuilder.build)
+
 
       val context = ZLayer.succeed {
         new HttpContext.Service {
