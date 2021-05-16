@@ -21,6 +21,8 @@ import io.opentelemetry.context.propagation.{
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.`export`.BatchSpanProcessor
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
+import io.opentelemetry.context.propagation.ContextPropagators
 import java.lang.String
 import java.io.IOException
 import scala.{
@@ -53,7 +55,9 @@ object HttpServerInstrumentation:
     val config = TraceConfiguration.builder.build()
     val exporter = TraceExporter.createWithConfiguration(config)
     val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()
-    OpenTelemetrySdk.builder().setTracerProvider(
+    OpenTelemetrySdk.builder()
+    .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+    .setTracerProvider(
       SdkTracerProvider.builder().addSpanProcessor(batcher).build()).build()
 
   val sdk = makeTracePipeline()
