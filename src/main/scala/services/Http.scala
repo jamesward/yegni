@@ -83,17 +83,18 @@ object HttpServer:
       java.lang.System.err.println("Starting http handler")
       // Grab Distirbuted trace
       import io.opentelemetry.api.trace.StatusCode
-      try HttpServerInstrumentation.extractContext(exchange)
+      val otelCtx = try HttpServerInstrumentation.extractContext(exchange)
       catch
         case e: java.lang.Throwable =>
           java.lang.System.err.println("Failed to extract context!")
           e.printStackTrace()
+          io.opentelemetry.context.Context.current
       java.lang.System.err.println(s"Done extracting context")
       import io.opentelemetry.api.trace.{Span}
-      java.lang.System.err.println("Found existing span: " + Span.current)
 
       // Start span for HTTP
-      val span = HttpServerInstrumentation.startHttpServerSpan(exchange)
+      val span = 
+        Using.resource(otelCtx.makeCurrent)(_ => HttpServerInstrumentation.startHttpServerSpan(exchange))
       // TODO: Start a timer      
 
       val context = ZLayer.succeed {

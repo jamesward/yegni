@@ -10,7 +10,7 @@ import io.opentelemetry.api.{
   GlobalOpenTelemetry
 }
 import io.opentelemetry.api.trace.{
-    Tracer, Span, SpanContext, TraceFlags, TraceState
+    Tracer, Span, SpanContext, TraceFlags, TraceState, TraceId, SpanId
 }
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.propagation.{
@@ -169,9 +169,17 @@ object CloudTraceContextPropagation extends TextMapPropagator:
       java.lang.System.err.println("Found cloud trace context, extracting...")
       val value = getter.get(carrier, myKey)
       // Now parse the value.
-      val Array(trace, rest) = value.split("/")
-      val Array(span, sampled) = value.split(";o=")
-      val parent = SpanContext.createFromRemoteParent(trace, span, TraceFlags.getDefault, TraceState.getDefault)
-      java.lang.System.err.println(s"Distributed trace: $trace")
-      context.`with`(Span.wrap(parent))
+      val Array(trace, rest) = value.split("/")      
+      val Array(span, sampled) = rest.split(";o=")
+      if !TraceId.isValid(trace) then
+        java.lang.System.err.println(s"Invalid trace id: $trace")
+      else if !SpanId.isValid(span) then
+        java.lang.System.err.println(s"Invalid span id: $span")
+      else ()
+      // TODO - pull sampling bit.
+      val parent = SpanContext.createFromRemoteParent(trace, span, TraceFlags.getSampled, TraceState.getDefault)
+      java.lang.System.err.println(s"Distributed trace: $parent")
+      val contextSpan = Span.wrap(parent)
+      java.lang.System.err.println(s"ContextSpan: ${contextSpan}")
+      context.`with`(contextSpan)
     else context
