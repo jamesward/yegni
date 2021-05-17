@@ -7,6 +7,7 @@ import zio.{
   ZLayer,
 }
 import zio.system.env
+import zio.clock.Clock
 import java.io.IOException
 import java.lang.String
 import scala.List
@@ -21,7 +22,8 @@ object ZioWebApp extends App:
       resp.copy(body = resp.body.toUpperCase)
 
     def handler(url: String): HttpHandler =
-      HttpClient.send(url).map(upper).provideSomeLayer(HttpClient.live)
+      HttpClient.send(url).provideSomeLayer(HttpClient.live)
+      //HttpClient.send(url).retry(Schedule.recurs(5)).provideSomeLayer(HttpClient.live ++ Clock.live)
 
     java.lang.System.err.println("Starting server!")
     val server = for
