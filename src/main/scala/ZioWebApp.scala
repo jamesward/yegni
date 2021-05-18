@@ -40,14 +40,19 @@ object ZioWebApp extends App:
       flakyZ.disconnect.race(slowZ.disconnect).map(upper).provideCustomLayer(HttpClient.live)
 
     val server = for
-      port <- env("PORT")
-      _ <- putStrLn("Starting server!")
+      maybePort <- env("PORT")
+      port = maybePort.map(_.toInt).getOrElse(8080)
+
       maybeFlakyUrl <- env("FLAKY_URL")
       flakyUrl = maybeFlakyUrl.getOrElse("http://localhost:8081/flaky")
+
       maybeSlowUrl <- env("SLOW_URL")
       slowUrl = maybeSlowUrl.getOrElse("http://localhost:8082/slow")
+
       route = "/" -> flakyOrSlow(flaky(flakyUrl), slow(slowUrl))
-      s    <- HttpServer.serve(port.map(_.toInt).getOrElse(8080))(route)
+
+      _ <- putStrLn(s"Starting server: http://localhost:$port")
+      s <- HttpServer.serve(port)(route)
     yield s
 
     server.exitCode
