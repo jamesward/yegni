@@ -172,8 +172,11 @@ object CloudTraceContextPropagation extends TextMapPropagator:
       val value = getter.get(carrier, myKey)
       java.lang.System.err.println(s"X-Cloud-Trace-Context: ${value}")
       // Now parse the value.
-      val Array(trace, rest) = value.split("/")      
-      val Array(span, sampled) = rest.split(";o=")
+      val Array(trace, rest) = value.split("/")
+      val span = rest.split(";o=") match
+        case Array(s, sampled) => s
+        case Array(s) => s
+        case _ => ""
       val correctedSpan = SpanId.fromLong(java.lang.Long.parseLong(span))
       if !TraceId.isValid(trace) then
         java.lang.System.err.println(s"Invalid trace id: $trace")
