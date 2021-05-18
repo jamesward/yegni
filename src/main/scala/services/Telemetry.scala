@@ -156,7 +156,7 @@ object CloudTraceContextPropagation extends TextMapPropagator:
       val current = Span.fromContext(context)
       if current.getSpanContext.isValid then
         val sampled = if current.getSpanContext.isSampled then 1 else 0
-        val value = s"${current.getSpanContext.getTraceId}/${current.getSpanContext.getSpanId};o=${sampled}"
+        val value = s"${current.getSpanContext.getTraceId}/${java.lang.Long.parseLong(current.getSpanContext.getSpanId, 16)};o=${sampled}"
         setter.set(carrier, myKey, value)
   override def extract[C](context: Context, carrier: C, getter: TextMapGetter[C]): Context =
     java.lang.System.err.println(s"Extracting context with keys: ${getter.keys(carrier).asScala}")
@@ -177,7 +177,7 @@ object CloudTraceContextPropagation extends TextMapPropagator:
         case Array(s, sampled) => s
         case Array(s) => s
         case _ => ""
-      val correctedSpan = SpanId.fromLong(java.lang.Long.parseLong(span))
+      val correctedSpan = SpanId.fromLong(java.lang.Long.parseUnsignedLong(span))
       if !TraceId.isValid(trace) then
         java.lang.System.err.println(s"Invalid trace id: $trace")
       else if !SpanId.isValid(correctedSpan) then
