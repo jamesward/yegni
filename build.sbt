@@ -5,12 +5,14 @@ enablePlugins(GraalVMNativeImagePlugin)
 
 name := "yegni"
 
-scalaVersion := "3.0.0-RC3"
+scalaVersion := "3.0.0"
+
+resolvers += "Maven Central Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
 libraryDependencies ++= Seq(
   "com.google.cloud.opentelemetry" % "exporter-trace" % "0.15.0",
   "com.google.cloud.opentelemetry" % "exporter-metrics" % "0.15.0-alpha",
-  "dev.zio"    %% "zio"                 % "1.0.7",
+  "dev.zio"    %% "zio"                 % "1.0.7+48-a6b0c87d-SNAPSHOT",
   "org.slf4j"  %  "slf4j-simple"        % "1.7.30",
 )
 
@@ -79,29 +81,4 @@ zioWebAppGraalRun := {
   implicit val scalaRun = new ForkRun(opts)
   val cp = (Runtime / fullClasspath).value.map(_.data)
   sbt.Run.run("ZioWebApp", cp, Seq.empty, streams.value.log).get
-}
-
-
-// run tasks that have a bad outputstream
-
-val badOutputStream = new OutputStream {
-  def write(i: Int): Unit = throw new IOException("bad")
-}
-
-lazy val runIt = taskKey[Unit]("runIt")
-
-runIt := {
-  val opts = forkOptions.value.withOutputStrategy(OutputStrategy.CustomOutput(badOutputStream))
-  implicit val scalaRun = new ForkRun(opts)
-  val cp = (Runtime / fullClasspath).value.map(_.data)
-  sbt.Run.run("itwontfail", cp, Seq.empty, streams.value.log).get
-}
-
-lazy val runItZ = taskKey[Unit]("runItZ")
-
-runItZ := {
-  val opts = forkOptions.value.withOutputStrategy(OutputStrategy.CustomOutput(badOutputStream))
-  implicit val scalaRun = new ForkRun(opts)
-  val cp = (Runtime / fullClasspath).value.map(_.data)
-  sbt.Run.run("ItWontFailZ", cp, Seq.empty, streams.value.log).get
 }

@@ -1,12 +1,8 @@
-import zio.console.*
-import scala.{List, Unit}
+import scala.List
 import java.lang.String
 
 object ItWontFailZ extends zio.App:
 
-  def run(args: List[String]) = myAppLogic.exitCode
+  val myAppLogic = putStrLn("hello, world")//.catchAll(_ => zio.ZIO.unit)
 
-  val myAppLogic: zio.URIO[Console, Unit] = for
-    _ <- putStrLn("hello, world")
-    _ <- putStrLn("but can it?")
-  yield ()
+  def run(args: List[String]) = myAppLogic.exitCode
