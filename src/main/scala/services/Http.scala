@@ -148,17 +148,27 @@ object HttpClient:
     HttpResponse => JvmHttpResponse,
   }
   import java.net.URI
+  import zio.ZEnv
+  import zio.blocking.{
+    Blocking,
+    effectBlocking,
+  }
+  import zio.blocking.effectBlocking
 
   trait Service:
-    def send(url: String): ZIO[Any, IOException, HttpResponse]
+    def send(url: String): ZIO[Blocking, IOException, HttpResponse]
 
-  def send(url: String): ZIO[HttpClient, IOException, HttpResponse] =
-    ZIO.accessM[HttpClient](_.get.send(url))
+  def send(url: String): ZIO[HttpClient & Blocking, IOException, HttpResponse] =
+    for
+      httpClient <- ZIO.access[HttpClient](_.get)
+      _ <- ZIO.access[Blocking](_.get)
+      resp <- httpClient.send(url)
+    yield resp
 
   case class HttpClientLive() extends HttpClient.Service:
-    def send(url: String): ZIO[Any, IOException, HttpResponse] =
+    def send(url: String): ZIO[Blocking, IOException, HttpResponse] =
       // todo: URI creation can fail
-      ZIO.effect {
+      effectBlocking {
         val client = JvmHttpClient.newBuilder.build
         val builder = JvmHttpRequest.newBuilder(URI(url))
         HttpServerInstrumentation.injectContext(builder)

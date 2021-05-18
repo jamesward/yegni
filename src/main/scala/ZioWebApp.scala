@@ -7,7 +7,9 @@ import zio.{
   ZIO,
   ZLayer,
 }
+import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.console.putStrLn
 import zio.system.env
 import java.io.IOException
 import java.lang.String
@@ -25,19 +27,21 @@ object ZioWebApp extends App:
     def upper(resp: HttpResponse): HttpResponse =
       resp.copy(body = resp.body.toUpperCase)
 
-    def flaky(url: String): ZIO[HttpClient & Clock, IOException, HttpResponse] =
+    type FlakyZ = ZIO[HttpClient & Clock & Blocking, IOException, HttpResponse]
+    type SlowZ  = ZIO[HttpClient & Blocking, IOException, HttpResponse]
+
+    def flaky(url: String): FlakyZ =
       HttpClient.send(url).retry(Schedule.recurs(5))
 
-    def slow(url: String): ZIO[HttpClient, IOException, HttpResponse] =
+    def slow(url: String): SlowZ =
       HttpClient.send(url)
 
-    def flakyOrSlow(flakyZ: ZIO[HttpClient & Clock, IOException, HttpResponse],
-                    slowZ: ZIO[HttpClient, IOException, HttpResponse]) =
+    def flakyOrSlow(flakyZ: FlakyZ, slowZ: SlowZ) =
       flakyZ.disconnect.race(slowZ.disconnect).provideCustomLayer(HttpClient.live)
 
-    java.lang.System.err.println("Starting server!")
     val server = for
       port <- env("PORT")
+      _ <- putStrLn("Starting server!")
       maybeFlakyUrl <- env("FLAKY_URL")
       flakyUrl = maybeFlakyUrl.getOrElse("http://localhost:8081/flaky")
       maybeSlowUrl <- env("SLOW_URL")
