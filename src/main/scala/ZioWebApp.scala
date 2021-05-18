@@ -37,7 +37,7 @@ object ZioWebApp extends App:
       HttpClient.send(url)
 
     def flakyOrSlow(flakyZ: FlakyZ, slowZ: SlowZ) =
-      flakyZ.disconnect.race(slowZ.disconnect).provideCustomLayer(HttpClient.live)
+      flakyZ.disconnect.race(slowZ.disconnect).map(upper).provideCustomLayer(HttpClient.live)
 
     val server = for
       port <- env("PORT")
