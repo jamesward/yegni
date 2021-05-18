@@ -24,4 +24,4 @@ def println(a: Any) =
   Console.withOut(badOutputStream)(Console.println(a))
 
 def putStrLn(line: String): IO[IOException, Unit] =
-  IO.effect(println(line)).catchAll( t => ZIO.fail(new IOException(t)))
+  IO.effect(println(line)).catchAll(t => ZIO.fail(new IOException(t)))

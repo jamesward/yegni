@@ -6,6 +6,7 @@ import java.lang.{
 }
 import java.io.IOException
 import scala.{
+    &,
     Any,
     Int,
     PartialFunction,
@@ -23,6 +24,7 @@ import zio.{
   Runtime,
   Managed,
   Cause,
+  ZEnv,
 }
 import zio.blocking.{
     Blocking,
@@ -41,7 +43,7 @@ object HttpContext:
     ZIO.accessM[HttpContext](ctx => ZIO.succeed(ctx.get.request))
 
 
-type HttpHandler = ZIO[HttpContext, IOException, HttpResponse]
+type HttpHandler = ZIO[HttpContext & ZEnv, IOException, HttpResponse]
 type HttpRoute = (String, HttpHandler)
 
 
@@ -93,14 +95,14 @@ object HttpServer:
       import io.opentelemetry.api.trace.{Span}
 
       // Start span for HTTP
-      val span = 
+      val span =
         Using.resource(otelCtx.makeCurrent)(_ => HttpServerInstrumentation.startHttpServerSpan(exchange))
-      // TODO: Start a timer      
+      // TODO: Start a timer
       import io.opentelemetry.api.common.Attributes
       import scala.jdk.CollectionConverters._
       val attrBuilder = Attributes.builder
       attrBuilder.put("method", exchange.getRequestMethod)
-      for 
+      for
         (hdr, value) <- exchange.getRequestHeaders.asScala
       do attrBuilder.put(hdr, value.asScala.headOption.getOrElse(""))
       span.addEvent("request", attrBuilder.build)
@@ -115,7 +117,7 @@ object HttpServer:
       val a = Using.resource(span.makeCurrent)(_ =>
         HttpServerInstrumentation.instrumentZio(Runtime.default)
         //Runtime.default
-        .unsafeRunSync(handler.provideLayer(context)))
+        .unsafeRunSync(handler.provideSomeLayer(context)))
 
       def fail(cause: Cause[IOException]): Unit =
         val body = cause.prettyPrint.getBytes
