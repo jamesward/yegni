@@ -170,6 +170,7 @@ object CloudTraceContextPropagation extends TextMapPropagator:
     then
       java.lang.System.err.println("Found cloud trace context, extracting...")
       val value = getter.get(carrier, myKey)
+      java.lang.System.err.println(s"X-Cloud-Trace-Context: ${value}")
       // Now parse the value.
       val Array(trace, rest) = value.split("/")      
       val Array(span, sampled) = rest.split(";o=")
