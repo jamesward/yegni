@@ -38,8 +38,6 @@ RUN upx-3.96-amd64_linux/upx -7 /app/target/graalvm-native-image/yegni
 
 FROM scratch
 
-WORKDIR /tmp
-
 COPY --from=builder /app/target/graalvm-native-image/yegni /yegni
 
 ENTRYPOINT ["/yegni"]

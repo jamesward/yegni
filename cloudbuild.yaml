@@ -25,6 +25,30 @@ steps:
       - 'REGION=us-central1'
 
 
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$REPO_NAME-slow:$COMMIT_SHA', '-f', 'slow.Dockerfile', '.' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/$REPO_NAME-slow:$COMMIT_SHA' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'tag', 'gcr.io/$PROJECT_ID/$REPO_NAME-slow:$COMMIT_SHA', 'gcr.io/$PROJECT_ID/$REPO_NAME-slow:latest' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/$REPO_NAME-slow:latest' ]
+
+  - name: ghcr.io/jamesward/easycloudrun
+    entrypoint: deploy
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+      - 'BUILD_ID=$BUILD_ID'
+      - 'COMMIT_SHA=$COMMIT_SHA'
+      - 'IMAGE_NAME=$REPO_NAME-slow'
+      - 'IMAGE_VERSION=$COMMIT_SHA'
+      - 'REGION=us-central1'
+
+
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/$REPO_NAME-webapp:$COMMIT_SHA', '-f', 'webapp.Dockerfile', '.']
 
@@ -45,7 +69,7 @@ steps:
       - 'COMMIT_SHA=$COMMIT_SHA'
       - 'IMAGE_NAME=$REPO_NAME-webapp'
       - 'IMAGE_VERSION=$COMMIT_SHA'
-      - 'DEPLOY_OPTS=--update-env-vars=CLIENT_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/api'
+      - 'DEPLOY_OPTS=--update-env-vars=FLAKY_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/flaky,SLOW_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/flaky'
       - 'REGION=us-central1'
 
 options:
