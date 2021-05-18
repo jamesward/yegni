@@ -7,12 +7,10 @@ name := "yegni"
 
 scalaVersion := "3.0.0"
 
-resolvers += "Maven Central Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
-
 libraryDependencies ++= Seq(
   "com.google.cloud.opentelemetry" % "exporter-trace" % "0.15.0",
   "com.google.cloud.opentelemetry" % "exporter-metrics" % "0.15.0-alpha",
-  "dev.zio"    %% "zio"                 % "1.0.7+48-a6b0c87d-SNAPSHOT",
+  "dev.zio"    %% "zio"                 % "1.0.8",
   "org.slf4j"  %  "slf4j-simple"        % "1.7.30",
 )
 
