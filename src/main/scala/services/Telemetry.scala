@@ -174,13 +174,14 @@ object CloudTraceContextPropagation extends TextMapPropagator:
       // Now parse the value.
       val Array(trace, rest) = value.split("/")      
       val Array(span, sampled) = rest.split(";o=")
+      val correctedSpan = SpanId.fromLong(java.lang.Long.parseLong(span))
       if !TraceId.isValid(trace) then
         java.lang.System.err.println(s"Invalid trace id: $trace")
-      else if !SpanId.isValid(span) then
+      else if !SpanId.isValid(correctedSpan) then
         java.lang.System.err.println(s"Invalid span id: $span")
       else ()
       // TODO - pull sampling bit.
-      val parent = SpanContext.createFromRemoteParent(trace, span, TraceFlags.getSampled, TraceState.getDefault)
+      val parent = SpanContext.createFromRemoteParent(trace, correctedSpan, TraceFlags.getSampled, TraceState.getDefault)
       java.lang.System.err.println(s"Distributed trace: $parent")
       val contextSpan = Span.wrap(parent)
       java.lang.System.err.println(s"ContextSpan: ${contextSpan}")
