@@ -1,5 +1,4 @@
-import services._
-
+import services.*
 import scala.{
   Any,
   Boolean,
@@ -7,6 +6,10 @@ import scala.{
   Nothing,
 }
 import scala.Predef.ArrowAssoc
+import scala.Predef.{
+  ArrowAssoc,
+  augmentString,
+}
 import java.lang.String
 import java.io.IOException
 import zio.{
@@ -17,10 +20,6 @@ import zio.{
 }
 import zio.random.Random
 import zio.system.env
-import scala.Predef.{
-  ArrowAssoc,
-  augmentString,
-}
 
 object Flaky extends App:
 

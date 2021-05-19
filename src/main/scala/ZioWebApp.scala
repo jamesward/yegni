@@ -1,4 +1,4 @@
-import services._
+import services.*
 import zio.{
   App,
   ExitCode,
@@ -7,7 +7,9 @@ import zio.{
   ZIO,
   ZLayer,
 }
+import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.console.putStrLn
 import zio.system.env
 import java.io.IOException
 import java.lang.String
@@ -25,26 +27,31 @@ object ZioWebApp extends App:
     def upper(resp: HttpResponse): HttpResponse =
       resp.copy(body = resp.body.toUpperCase)
 
-    def flaky(url: String): ZIO[HttpClient & Clock & TelemetryContext, IOException, HttpResponse] =
+    def flaky(url: String): ZIO[HttpClient & Clock & Blocking & TelemetryContext, IOException, HttpResponse] =
       HttpClient.send(url).retry(Schedule.recurs(5))
 
-    def slow(url: String): ZIO[HttpClient & TelemetryContext, IOException, HttpResponse] =
+    def slow(url: String): ZIO[HttpClient & Blocking & TelemetryContext, IOException, HttpResponse] =
       HttpClient.send(url)
 
-    def flakyOrSlow(flakyZ: ZIO[HttpClient & Clock & TelemetryContext, IOException, HttpResponse],
-                    slowZ: ZIO[HttpClient & TelemetryContext, IOException, HttpResponse]): HttpHandler =
+    def flakyOrSlow(flakyZ: ZIO[HttpClient & Clock & Blocking & TelemetryContext, IOException, HttpResponse],
+                    slowZ: ZIO[HttpClient & Blocking & TelemetryContext, IOException, HttpResponse]): HttpHandler =
       flakyZ.disconnect.race(slowZ.disconnect)
         .provideSomeLayer(HttpClient.live)
 
-    java.lang.System.err.println("Starting server!")
     val server = for
-      port <- env("PORT")
+      maybePort <- env("PORT")
+      port = maybePort.map(_.toInt).getOrElse(8080)
+
       maybeFlakyUrl <- env("FLAKY_URL")
       flakyUrl = maybeFlakyUrl.getOrElse("http://localhost:8081/flaky")
+
       maybeSlowUrl <- env("SLOW_URL")
       slowUrl = maybeSlowUrl.getOrElse("http://localhost:8082/slow")
+
       route = "/" -> flakyOrSlow(flaky(flakyUrl), slow(slowUrl))
-      s    <- HttpServer.serve(port.map(_.toInt).getOrElse(8080))(route)
+
+      _ <- putStrLn(s"Starting server: http://localhost:$port")
+      s <- HttpServer.serve(port)(route)
     yield s
 
     server.exitCode

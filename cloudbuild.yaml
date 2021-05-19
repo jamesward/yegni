@@ -69,8 +69,9 @@ steps:
       - 'COMMIT_SHA=$COMMIT_SHA'
       - 'IMAGE_NAME=$REPO_NAME-webapp'
       - 'IMAGE_VERSION=$COMMIT_SHA'
-      - 'DEPLOY_OPTS=--update-env-vars=FLAKY_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/flaky,SLOW_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/flaky'
+      - 'DEPLOY_OPTS=--update-env-vars=FLAKY_URL=https://yegni-flaky-lwg3h53gfa-uc.a.run.app/flaky,SLOW_URL=https://yegni-slow-lwg3h53gfa-uc.a.run.app/slow'
       - 'REGION=us-central1'
 
+timeout: 15m
 options:
   machineType: 'N1_HIGHCPU_32'
