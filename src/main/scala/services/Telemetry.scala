@@ -10,7 +10,7 @@ import io.opentelemetry.api.{
   GlobalOpenTelemetry
 }
 import io.opentelemetry.api.trace.{
-    Tracer, Span, SpanContext, TraceFlags, TraceState, TraceId, SpanId
+    Tracer, Span, SpanContext, TraceFlags, TraceState, TraceId, SpanId, SpanBuilder
 }
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.propagation.{
@@ -32,14 +32,17 @@ import scala.{
   Int,
   Long,
   Double,
-  Array
+  Array,
+  &,
 }
+import scala.Predef.summon
 import zio.{
   Layer,
   Has,
   ZLayer,
   ZIO,
-  Runtime
+  Runtime,
+  Ref
 }
 import zio.internal.Executor
 import scala.compiletime.{
@@ -56,13 +59,99 @@ import java.net.http.HttpRequest
 
 import scala.jdk.CollectionConverters._
 
-// type TelemetryContext = Has[TelemetryContext]
-// object TelemetryContext:
-//   trait Service:
-//     def extract[T](request: T): ZIO[TelemetryContext, Nothing, Unit]
+type TelemetryContext = Has[TelemetryContext.Service]
+object TelemetryContext:
+  /** The service for using telemetry. */
+  trait Service:
+    def currentContext: Ref[Context]
+    def extract[T : TextMapGetter](request: T): ZIO[TelemetryContext, Nothing, Unit]
+    def inject[T : TextMapSetter](request: T): ZIO[TelemetryContext, Nothing, Unit]
+    def tracer(name: String, version: String = "1.0"): ZIO[TelemetryContext, Nothing, Tracer]
+    
+  private def currentContext: ZIO[TelemetryContext, Nothing, Ref[Context]] =
+    ZIO.accessM[TelemetryContext](x => ZIO.succeed(x.get.currentContext))
+  /** Extracts distributed context from an incoming request. */
+  def extract[T: TextMapGetter](request: T): ZIO[TelemetryContext, Nothing, Unit] =
+    ZIO.accessM[TelemetryContext](_.get.extract[T](request))
+  /** Injects distributed context propagation headers into an outgoing request. */
+  def inject[T: TextMapSetter](request: T): ZIO[TelemetryContext, Nothing, Unit] =
+    ZIO.accessM[TelemetryContext](_.get.inject[T](request))
+  /** Wraps a given effect with an HTTP span. */
+  def httpSpan[Env, Error, R](exchange: HttpExchange)(handler: ZIO[TelemetryContext & Env, Error, R]): ZIO[TelemetryContext & Env, Error, R] =
+      // Note: This has to be done "raw" because of how ZIO handles `accessM`, we can't preserve our environment through an acccesM.
+      for
+        ctxRef <- currentContext
+        initialContext <-ctxRef.get
+        tracer <- ZIO.accessM[TelemetryContext](_.get.tracer("zio-yegni-http"))
+        span <- ZIO.effectTotal(makeHttpSpan(exchange, initialContext, tracer))
+        _ <- ZIO.effectTotal(java.lang.System.err.println(s"Processing HTTP request: $span"))
+        _ <- ctxRef.update(c => span.storeInContext(c))
+        result <- handler.ensuring(ZIO.effectTotal(span.end()))  // TODO - more cleanup?
+      yield result
 
 
-//   def current: ZIO{Any, Nothing, TelemetryContext}
+  private def makeHttpSpan(exchange: HttpExchange, context: Context, tracer: Tracer): Span =
+    val spanBuilder = 
+      tracer.spanBuilder(exchange.getRequestURI.toString)
+      .setParent(context)
+    spanBuilder.setAttribute("component", "http")
+    spanBuilder.setAttribute("http.method", exchange.getRequestMethod)
+    spanBuilder.setAttribute("http.scheme", "http")
+    spanBuilder.setAttribute("http.host", exchange.getLocalAddress.getHostString)
+    for
+      (attr, env) <- scala.Seq(("service.name", "K_SERVICE"), ("service.version", "K_REVISION"))
+      value <- scala.sys.env.get(env)
+    do spanBuilder.setAttribute(attr, value)
+    // TODO - more attributes/semantic conventions
+    spanBuilder.startSpan()
+
+  /** OpenTelemetry instrumentation of TelemetryContext. */
+  class OtelService(override val currentContext: Ref[Context], otel: OpenTelemetry)
+      extends Service:
+    override def extract[T : TextMapGetter](request: T): ZIO[TelemetryContext, Nothing, Unit] =
+      currentContext update { ctx =>
+        val propagator = otel.getPropagators.getTextMapPropagator
+        propagator.extract(ctx, request, summon[TextMapGetter[T]])
+      }
+    override def inject[T : TextMapSetter](request: T): ZIO[TelemetryContext, Nothing, Unit] =
+      for
+        ctx <- currentContext.get
+      yield 
+        val propagator = otel.getPropagators.getTextMapPropagator
+        propagator.inject(ctx, request, summon[TextMapSetter[T]])
+    override def tracer(name: String, version: String = "1.0"): ZIO[TelemetryContext, Nothing, Tracer] =
+      ZIO.succeed(otel.getTracer(name, version))
+
+  /** Live layer of our service. */
+  val liveOtel: ZLayer[Any, Nothing, TelemetryContext] = 
+    val effect: ZIO[Any, Nothing, TelemetryContext.Service] =
+      for 
+        ctxRef <- Ref.make(Context.root)
+      yield OtelService(ctxRef, makeTracePipeline())
+    ZLayer.fromEffect(effect)
+      
+    
+
+private def makeTracePipeline(): OpenTelemetry =
+  def propagators = ContextPropagators.create(
+        TextMapPropagator.composite(
+          W3CTraceContextPropagator.getInstance(),
+          CloudTraceContextPropagation))
+  try
+    // todo: this silently fails if the project is not set
+    val config = TraceConfiguration.builder.build()
+    val exporter = TraceExporter.createWithConfiguration(config)
+    val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()
+    OpenTelemetrySdk.builder()
+    .setPropagators(propagators)
+    .setTracerProvider(
+      SdkTracerProvider.builder().addSpanProcessor(batcher).build()).build()
+  catch
+    case e =>
+      java.lang.System.err.println("Failed to configure OpenTelemetry to talk to GCP.")
+      e.printStackTrace()
+      java.lang.System.err.println("... Continuing without telemetry.")
+      OpenTelemetrySdk.builder().setPropagators(propagators).build
   
 
 
@@ -103,7 +192,7 @@ object HttpServerInstrumentation:
 
   /** Extract distributed trace/span ids from http headers. */
   def extractContext(exchange: HttpExchange) =
-    textPropagator.extract(Context.current, exchange, MyTextMapGetter)
+    textPropagator.extract(Context.current, exchange, summon[TextMapGetter[HttpExchange]])
 
   /** Bounds the handling of an HTTP span.
    *
@@ -122,30 +211,13 @@ object HttpServerInstrumentation:
     do span.setAttribute(attr, value)
     // TODO - more attributes/semantic conventions
     span
-
-
-  object MyTextMapGetter extends TextMapGetter[HttpExchange]:
-    override def keys(ctx: HttpExchange) =
-      ctx.getRequestHeaders.keySet.asScala.map(normalizeFrom).asJava
-    override def get(ctx: HttpExchange, key: String): String =
-      if ctx.getRequestHeaders.containsKey(key) then
-        ctx.getRequestHeaders.get(normalizeTo(key)).get(0)
-      else ""
-    private def normalizeFrom(key: String): String = key.toLowerCase
-    private def normalizeTo(key: String): String =
-      if key.length > 0 then
-        s"${java.lang.Character.toUpperCase(key.charAt(0))}${key.substring(1).toLowerCase}"
-      else key
     
 
 
   /** Injects the distributed trace context into HTTP requests. */
   def injectContext(req: HttpRequest.Builder): HttpRequest.Builder =
-    textPropagator.inject(Context.current, req, MyTextMapSetter)
+    textPropagator.inject(Context.current, req, summon[TextMapSetter[HttpRequest.Builder]])
     req
-  object MyTextMapSetter extends TextMapSetter[HttpRequest.Builder]:
-    override def set(ctx: HttpRequest.Builder, key: String, value: String): Unit =
-      ctx.header(key, value)
 
 
 object CloudTraceContextPropagation extends TextMapPropagator:
@@ -156,7 +228,8 @@ object CloudTraceContextPropagation extends TextMapPropagator:
       val current = Span.fromContext(context)
       if current.getSpanContext.isValid then
         val sampled = if current.getSpanContext.isSampled then 1 else 0
-        val value = s"${current.getSpanContext.getTraceId}/${java.lang.Long.parseLong(current.getSpanContext.getSpanId, 16)};o=${sampled}"
+        val spanIdAsUnsignedLong = java.lang.Long.toUnsignedString(java.lang.Long.parseUnsignedLong(current.getSpanContext.getSpanId, 16))
+        val value = s"${current.getSpanContext.getTraceId}/${spanIdAsUnsignedLong};o=${sampled}"
         setter.set(carrier, myKey, value)
   override def extract[C](context: Context, carrier: C, getter: TextMapGetter[C]): Context =
     java.lang.System.err.println(s"Extracting context with keys: ${getter.keys(carrier).asScala}")
@@ -190,3 +263,21 @@ object CloudTraceContextPropagation extends TextMapPropagator:
       java.lang.System.err.println(s"ContextSpan: ${contextSpan}")
       context.`with`(contextSpan)
     else context
+
+
+given TextMapGetter[HttpExchange] with
+  override def keys(ctx: HttpExchange) =
+    ctx.getRequestHeaders.keySet.asScala.map(normalizeFrom).asJava
+  override def get(ctx: HttpExchange, key: String): String =
+    if ctx.getRequestHeaders.containsKey(key) then
+      ctx.getRequestHeaders.get(normalizeTo(key)).get(0)
+    else ""
+  private def normalizeFrom(key: String): String = key.toLowerCase
+  private def normalizeTo(key: String): String =
+    if key.length > 0 then
+      s"${java.lang.Character.toUpperCase(key.charAt(0))}${key.substring(1).toLowerCase}"
+    else key
+
+given TextMapSetter[HttpRequest.Builder] with
+  override def set(ctx: HttpRequest.Builder, key: String, value: String): Unit =
+    ctx.header(key, value)

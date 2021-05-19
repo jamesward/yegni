@@ -35,15 +35,7 @@ import zio.internal.Platform
 
 trait HttpRequest
 case class HttpResponse(body: String)
-type HttpContext = Has[HttpContext.Service]
-object HttpContext:
-  trait Service:
-    def request: HttpRequest
-  def request: ZIO[HttpContext, Nothing, HttpRequest] =
-    ZIO.accessM[HttpContext](ctx => ZIO.succeed(ctx.get.request))
-
-
-type HttpHandler = ZIO[HttpContext & ZEnv, IOException, HttpResponse]
+type HttpHandler = ZIO[TelemetryContext & ZEnv, IOException, HttpResponse]
 type HttpRoute = (String, HttpHandler)
 
 
@@ -83,59 +75,26 @@ object HttpServer:
   private def adaptHandler(handler: HttpHandler): JvmHttpHandler =
     exchange =>
       java.lang.System.err.println("Starting http handler")
-      // Grab Distirbuted trace
-      import io.opentelemetry.api.trace.StatusCode
-      val otelCtx = try HttpServerInstrumentation.extractContext(exchange)
-      catch
-        case e: java.lang.Throwable =>
-          java.lang.System.err.println("Failed to extract context!")
-          e.printStackTrace()
-          io.opentelemetry.context.Context.current
-      java.lang.System.err.println(s"Done extracting context")
-      import io.opentelemetry.api.trace.{Span}
 
-      // Start span for HTTP
-      val span =
-        Using.resource(otelCtx.makeCurrent)(_ => HttpServerInstrumentation.startHttpServerSpan(exchange))
-      // TODO: Start a timer
-      import io.opentelemetry.api.common.Attributes
-      import scala.jdk.CollectionConverters._
-      val attrBuilder = Attributes.builder
-      attrBuilder.put("method", exchange.getRequestMethod)
-      for
-        (hdr, value) <- exchange.getRequestHeaders.asScala
-      do attrBuilder.put(hdr, value.asScala.headOption.getOrElse(""))
-      span.addEvent("request", attrBuilder.build)
-
-
-      val context = ZLayer.succeed {
-        new HttpContext.Service {
-          override def request: HttpRequest = new HttpRequest {}
-        }
-      }
-      java.lang.System.err.println(s"Running logic for request: $span")
-      val a = Using.resource(span.makeCurrent)(_ =>
-        HttpServerInstrumentation.instrumentZio(Runtime.default)
-        //Runtime.default
-        .unsafeRunSync(handler.provideSomeLayer(context)))
+      // Wrap the incoming handler in a version that does Telemetry propagation
+      // and obserrvability.
+      val effect: HttpHandler =
+        for
+          _ <- TelemetryContext.extract(exchange)
+          result <- TelemetryContext.httpSpan[ZEnv, IOException, HttpResponse](exchange)(handler)
+        yield result
+      val context = TelemetryContext.liveOtel
+      val a = Runtime.default.unsafeRunSync(effect.provideSomeLayer(context))
 
       def fail(cause: Cause[IOException]): Unit =
         val body = cause.prettyPrint.getBytes
         exchange.sendResponseHeaders(500, body.length)
         Using(exchange.getResponseBody)(_.write(body))
-        // Stop Timer, record value
-        // End span with failure
-        span.setStatus(StatusCode.ERROR, cause.prettyPrint)
-        span.end()
 
       def success(response: HttpResponse): Unit =
         val body = response.body.getBytes
         exchange.sendResponseHeaders(200, body.length)
         Using(exchange.getResponseBody)(_.write(body))
-        // Stop TImer, record value
-        // End span
-        span.setStatus(StatusCode.OK)
-        span.end()
 
       a.fold(fail, success)
 
@@ -150,19 +109,26 @@ object HttpClient:
   import java.net.URI
 
   trait Service:
-    def send(url: String): ZIO[Any, IOException, HttpResponse]
+    def send(url: JvmHttpRequest): ZIO[Any, IOException, HttpResponse]
 
-  def send(url: String): ZIO[HttpClient, IOException, HttpResponse] =
-    ZIO.accessM[HttpClient](_.get.send(url))
+
+  private def requestBuilder(url: String) =
+    ZIO.effect(JvmHttpRequest.newBuilder(URI(url))) refineOrDie {
+      case t: Throwable =>
+        new IOException(t)
+    }
+  def send(url: String): ZIO[HttpClient & TelemetryContext, IOException, HttpResponse] =
+    for
+      request <- requestBuilder(url)
+      _ <- TelemetryContext.inject(request)
+      result <- ZIO.accessM[HttpClient](_.get.send(request.build))
+    yield result
 
   case class HttpClientLive() extends HttpClient.Service:
-    def send(url: String): ZIO[Any, IOException, HttpResponse] =
+    def send(request: JvmHttpRequest): ZIO[Any, IOException, HttpResponse] =
       // todo: URI creation can fail
       ZIO.effect {
         val client = JvmHttpClient.newBuilder.build
-        val builder = JvmHttpRequest.newBuilder(URI(url))
-        HttpServerInstrumentation.injectContext(builder)
-        val request = builder.build
         java.lang.System.err.println(request.headers.toString)
         client.send(request, JvmHttpResponse.BodyHandlers.ofString)
       } refineOrDie {

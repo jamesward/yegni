@@ -25,15 +25,16 @@ object ZioWebApp extends App:
     def upper(resp: HttpResponse): HttpResponse =
       resp.copy(body = resp.body.toUpperCase)
 
-    def flaky(url: String): ZIO[HttpClient & Clock, IOException, HttpResponse] =
+    def flaky(url: String): ZIO[HttpClient & Clock & TelemetryContext, IOException, HttpResponse] =
       HttpClient.send(url).retry(Schedule.recurs(5))
 
-    def slow(url: String): ZIO[HttpClient, IOException, HttpResponse] =
+    def slow(url: String): ZIO[HttpClient & TelemetryContext, IOException, HttpResponse] =
       HttpClient.send(url)
 
-    def flakyOrSlow(flakyZ: ZIO[HttpClient & Clock, IOException, HttpResponse],
-                    slowZ: ZIO[HttpClient, IOException, HttpResponse]) =
-      flakyZ.disconnect.race(slowZ.disconnect).provideCustomLayer(HttpClient.live)
+    def flakyOrSlow(flakyZ: ZIO[HttpClient & Clock & TelemetryContext, IOException, HttpResponse],
+                    slowZ: ZIO[HttpClient & TelemetryContext, IOException, HttpResponse]): HttpHandler =
+      flakyZ.disconnect.race(slowZ.disconnect)
+        .provideSomeLayer(HttpClient.live)
 
     java.lang.System.err.println("Starting server!")
     val server = for

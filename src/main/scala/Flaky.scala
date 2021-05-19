@@ -24,7 +24,7 @@ import scala.Predef.{
 
 object Flaky extends App:
 
-  def flaky(random: Random.Service): ZIO[HttpContext, IOException, HttpResponse] =
+  def flaky(random: Random.Service): ZIO[TelemetryContext, IOException, HttpResponse] =
     def succeedOrFail(succeed: Boolean) =
       if (succeed)
         ZIO.succeed(HttpResponse("hello, flaky"))
