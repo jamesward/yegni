@@ -138,7 +138,6 @@ private def makeTracePipeline(): OpenTelemetry =
           W3CTraceContextPropagator.getInstance(),
           CloudTraceContextPropagation))
   try
-    // todo: this silently fails if the project is not set
     val config = TraceConfiguration.builder.build()
     val exporter = TraceExporter.createWithConfiguration(config)
     val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()

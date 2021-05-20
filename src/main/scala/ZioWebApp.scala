@@ -27,17 +27,15 @@ object ZioWebApp extends App:
     def upper(resp: HttpResponse): HttpResponse =
       resp.copy(body = resp.body.toUpperCase)
 
-    type FlakyZ = ZIO[HttpClient & Clock & Blocking & TelemetryContext, IOException, HttpResponse]
-    type SlowZ = ZIO[HttpClient & Blocking & TelemetryContext, IOException, HttpResponse]
+    def flaky(url: String): HttpHandler =
+      HttpClient.send(url).retry(Schedule.recurs(5)).provideSomeLayer(HttpClient.live)
+      
+    def slow(url: String): HttpHandler =
+      HttpClient.send(url).provideSomeLayer(HttpClient.live)
 
-    def flaky(url: String): FlakyZ =
-      HttpClient.send(url).retry(Schedule.recurs(5))
 
-    def slow(url: String): SlowZ =
-      HttpClient.send(url)
-
-    def flakyOrSlow(flakyZ: FlakyZ, slowZ: SlowZ): HttpHandler =
-      flakyZ.disconnect.race(slowZ.disconnect).map(upper).provideSomeLayer(HttpClient.live)
+    def flakyOrSlow(flakyZ: HttpHandler, slowZ: HttpHandler): HttpHandler =
+      flakyZ.disconnect.race(slowZ.disconnect).map(upper)
 
     val server = for
       maybePort <- env("PORT")
@@ -50,9 +48,21 @@ object ZioWebApp extends App:
       slowUrl = maybeSlowUrl.getOrElse("http://localhost:8082/slow")
 
       route = "/" -> flakyOrSlow(flaky(flakyUrl), slow(slowUrl))
+      route2 = "/retry" -> flaky(flakyUrl)
+      route3 = "/hedge" -> slow(slowUrl).hedge
 
       _ <- putStrLn(s"Starting server: http://localhost:$port")
-      s <- HttpServer.serve(port)(route)
+      s <- HttpServer.serve(port)(route, route2, route3)
     yield s
 
     server.exitCode
+
+
+// Helper method to do effect hedging.
+extension [Env, Err, R](effect: ZIO[Env, Err, R])
+  /**
+   * Hedges a retry of this effect against the 50th-percentile latency of the effect.
+   */
+  def hedge: ZIO[Env, Err, R] = 
+    // TODO - implement.
+    effect
