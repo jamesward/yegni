@@ -49,7 +49,7 @@ object ZioWebApp extends App:
 
       route = "/" -> flakyOrSlow(flaky(flakyUrl), slow(slowUrl))
       route2 = "/retry" -> flaky(flakyUrl)
-      route3 = "/hedge" -> slow(slowUrl).hedge
+      route3 = "/hedge" -> slow(slowUrl).hedge()
 
       _ <- putStrLn(s"Starting server: http://localhost:$port")
       s <- HttpServer.serve(port)(route, route2, route3)
@@ -58,11 +58,3 @@ object ZioWebApp extends App:
     server.exitCode
 
 
-// Helper method to do effect hedging.
-extension [Env, Err, R](effect: ZIO[Env, Err, R])
-  /**
-   * Hedges a retry of this effect against the 50th-percentile latency of the effect.
-   */
-  def hedge: ZIO[Env, Err, R] = 
-    // TODO - implement.
-    effect
