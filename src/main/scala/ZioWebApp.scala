@@ -27,16 +27,17 @@ object ZioWebApp extends App:
     def upper(resp: HttpResponse): HttpResponse =
       resp.copy(body = resp.body.toUpperCase)
 
-    def flaky(url: String): ZIO[HttpClient & Clock & Blocking & TelemetryContext, IOException, HttpResponse] =
+    type FlakyZ = ZIO[HttpClient & Clock & Blocking & TelemetryContext, IOException, HttpResponse]
+    type SlowZ = ZIO[HttpClient & Blocking & TelemetryContext, IOException, HttpResponse]
+
+    def flaky(url: String): FlakyZ =
       HttpClient.send(url).retry(Schedule.recurs(5))
 
-    def slow(url: String): ZIO[HttpClient & Blocking & TelemetryContext, IOException, HttpResponse] =
+    def slow(url: String): SlowZ =
       HttpClient.send(url)
 
-    def flakyOrSlow(flakyZ: ZIO[HttpClient & Clock & Blocking & TelemetryContext, IOException, HttpResponse],
-                    slowZ: ZIO[HttpClient & Blocking & TelemetryContext, IOException, HttpResponse]): HttpHandler =
-      flakyZ.disconnect.race(slowZ.disconnect)
-        .provideSomeLayer(HttpClient.live)
+    def flakyOrSlow(flakyZ: FlakyZ, slowZ: SlowZ): HttpHandler =
+      flakyZ.disconnect.race(slowZ.disconnect).map(upper).provideSomeLayer(HttpClient.live)
 
     val server = for
       maybePort <- env("PORT")
