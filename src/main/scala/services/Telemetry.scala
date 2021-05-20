@@ -152,74 +152,8 @@ private def makeTracePipeline(): OpenTelemetry =
       e.printStackTrace()
       java.lang.System.err.println("... Continuing without telemetry.")
       OpenTelemetrySdk.builder().setPropagators(propagators).build
-  
 
-
-object HttpServerInstrumentation:
-  private def propagators = ContextPropagators.create(
-        TextMapPropagator.composite(
-          W3CTraceContextPropagator.getInstance(),
-          CloudTraceContextPropagation))
-  private def makeTracePipeline(): OpenTelemetry =
-    try
-      // todo: this silently fails if the project is not set
-      val config = TraceConfiguration.builder.build()
-      val exporter = TraceExporter.createWithConfiguration(config)
-      val batcher = BatchSpanProcessor.builder(exporter).setMaxQueueSize(2).build()
-      OpenTelemetrySdk.builder()
-      .setPropagators(propagators)
-      .setTracerProvider(
-        SdkTracerProvider.builder().addSpanProcessor(batcher).build()).build()
-    catch
-      case e =>
-        java.lang.System.err.println("Failed to configure OpenTelemetry to talk to GCP.")
-        e.printStackTrace()
-        java.lang.System.err.println("... Continuing without telemetry.")
-        OpenTelemetrySdk.builder().setPropagators(propagators).build
-
-  val sdk = makeTracePipeline()
-  val httpTracer = sdk.getTracer("zio-jvm-http", "1.0")
-  val textPropagator = sdk.getPropagators.getTextMapPropagator
-
-  /** Injects context propagation onto ZIO. */
-  def instrumentZio[Env](r: Runtime[Env]): Runtime[Env] =
-    // For now, just force all threads to run synchronously.
-    r.withExecutor(Executor.fromExecutionContext(Int.MaxValue)(
-      new ExecutionContext:
-        override def execute(r: Runnable): Unit = r.run()
-        override def reportFailure(cause: Throwable): Unit = cause.printStackTrace()
-    ))
-
-  /** Extract distributed trace/span ids from http headers. */
-  def extractContext(exchange: HttpExchange) =
-    textPropagator.extract(Context.current, exchange, summon[TextMapGetter[HttpExchange]])
-
-  /** Bounds the handling of an HTTP span.
-   *
-   *  This is not zio friendly as it expects the complete handling of the
-   *  HTTP exchange to happen within `work`.
-   */
-  def startHttpServerSpan(exchange: HttpExchange): Span =
-    val span = httpTracer.spanBuilder(exchange.getRequestURI.toString).startSpan()
-    span.setAttribute("component", "http")
-    span.setAttribute("http.method", exchange.getRequestMethod)
-    span.setAttribute("http.scheme", "http")
-    span.setAttribute("http.host", exchange.getLocalAddress.getHostString)
-    for
-      (attr, env) <- scala.Seq(("service.name", "K_SERVICE"), ("service.version", "K_REVISION"))
-      value <- scala.sys.env.get(env)
-    do span.setAttribute(attr, value)
-    // TODO - more attributes/semantic conventions
-    span
-    
-
-
-  /** Injects the distributed trace context into HTTP requests. */
-  def injectContext(req: HttpRequest.Builder): HttpRequest.Builder =
-    textPropagator.inject(Context.current, req, summon[TextMapSetter[HttpRequest.Builder]])
-    req
-
-
+// Quick implementation of propagation for google cloud.
 object CloudTraceContextPropagation extends TextMapPropagator:
   val myKey = "x-cloud-trace-context"
   override val fields = scala.collection.immutable.Seq(myKey).asJava
@@ -264,7 +198,7 @@ object CloudTraceContextPropagation extends TextMapPropagator:
       context.`with`(contextSpan)
     else context
 
-
+// extracts distributed context for JVM http server
 given TextMapGetter[HttpExchange] with
   override def keys(ctx: HttpExchange) =
     ctx.getRequestHeaders.keySet.asScala.map(normalizeFrom).asJava
@@ -278,6 +212,7 @@ given TextMapGetter[HttpExchange] with
       s"${java.lang.Character.toUpperCase(key.charAt(0))}${key.substring(1).toLowerCase}"
     else key
 
+// injects distributed context for JVM http client
 given TextMapSetter[HttpRequest.Builder] with
   override def set(ctx: HttpRequest.Builder, key: String, value: String): Unit =
     ctx.header(key, value)

@@ -115,24 +115,27 @@ object HttpClient:
   import zio.blocking.effectBlocking
 
   trait Service:
-    def send(url: JvmHttpRequest): ZIO[Blocking, IOException, HttpResponse]
+    def send(url: String): ZIO[Blocking & TelemetryContext, IOException, HttpResponse]
 
-
-  private def requestBuilder(url: String) =
-    ZIO.effect(JvmHttpRequest.newBuilder(URI(url))) refineOrDie {
-      case t: Throwable =>
-        new IOException(t)
-    }
   def send(url: String): ZIO[HttpClient & TelemetryContext & Blocking, IOException, HttpResponse] =
     for
-      request <- requestBuilder(url)
-      _ <- TelemetryContext.inject(request)
       service <- ZIO.accessM[HttpClient](x => ZIO.succeed(x.get))
-      result <- service.send(request.build)
+      result <- service.send(url)
     yield result
 
   case class HttpClientLive() extends HttpClient.Service:
-    def send(request: JvmHttpRequest): ZIO[Blocking, IOException, HttpResponse] =
+    override def send(url: String): ZIO[Blocking & TelemetryContext, IOException, HttpResponse] =
+      for
+        request <- requestBuilder(url)
+        _ <- TelemetryContext.inject(request)
+        result <- sendImpl(request.build)
+      yield result
+    private def requestBuilder(url: String) =
+      ZIO.effect(JvmHttpRequest.newBuilder(URI(url))) refineOrDie {
+        case t: Throwable =>
+          new IOException(t)
+      }
+    private def sendImpl(request: JvmHttpRequest): ZIO[Blocking, IOException, HttpResponse] =
       // todo: URI creation can fail
       effectBlocking {
         val client = JvmHttpClient.newBuilder.build
