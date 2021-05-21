@@ -18,26 +18,25 @@ import zio.{
   ZEnv,
   ZIO,
 }
-import zio.random.Random
+import zio.random.nextBoolean
 import zio.system.env
 
 object Flaky extends App:
 
-  def flaky(random: Random.Service): ZIO[TelemetryContext, IOException, HttpResponse] =
-    def succeedOrFail(succeed: Boolean) =
-      if (succeed)
-        ZIO.succeed(HttpResponse("hello, flaky"))
-      else
-        ZIO.fail(new IOException("erggg"))
-
-    random.nextBoolean.flatMap(succeedOrFail)
+  val handler: HttpHandler =
+    for
+      succeed <- nextBoolean
+      result <-
+        if (succeed)
+          ZIO.succeed(HttpResponse("hello, flaky"))
+        else
+          ZIO.fail(new IOException("erggg"))
+    yield result
 
   override def run(args: List[String]) =
     val server = for
       port <- env("PORT")
-      random <- ZIO.access[Random](_.get)
-      handler = flaky(random)
-      s <- HttpServer.serve(port.map(_.toInt).getOrElse(8081))("/flaky" -> handler)
+      s <- HttpServer.serve(port.map(_.toInt).getOrElse(8081))("/flaky" -> handler, "/" -> handler)
     yield s
 
     server.exitCode

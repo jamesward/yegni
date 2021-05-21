@@ -20,15 +20,21 @@ import scala.Predef.{
   ArrowAssoc,
   augmentString,
 }
+import zio.random.nextIntBetween
 
 object Slow extends App:
 
   override def run(args: List[String]) =
-    val handler = ZIO.sleep(3.seconds).map(_ => HttpResponse("hello, slow"))
+    val handler = 
+      for
+        delay <- nextIntBetween(100, 5000)
+        _ <- ZIO.sleep(delay.milliseconds)
+      yield
+        HttpResponse(s"hello, slow.  We took: $delay millisconds.  Hope you got a coffee.")
 
     val server = for
       port <- env("PORT")
-      s    <- HttpServer.serve(port.map(_.toInt).getOrElse(8082))("/slow" -> handler)
+      s    <- HttpServer.serve(port.map(_.toInt).getOrElse(8082))("/slow" -> handler, "/" -> handler)
     yield s
 
     server.exitCode
