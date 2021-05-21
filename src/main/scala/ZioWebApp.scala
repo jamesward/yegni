@@ -28,14 +28,14 @@ object ZioWebApp extends App:
       resp.copy(body = resp.body.toUpperCase)
 
     def flaky(url: String): HttpHandler =
-      HttpClient.send(url).retry(Schedule.recurs(5)).provideSomeLayer(HttpClient.live)
+      HttpClient.send(url).map(upper).retry(Schedule.recurs(5)).provideSomeLayer(HttpClient.live)
       
     def slow(url: String): HttpHandler =
-      HttpClient.send(url).provideSomeLayer(HttpClient.live)
+      HttpClient.send(url).map(upper).provideSomeLayer(HttpClient.live)
 
 
     def flakyOrSlow(flakyZ: HttpHandler, slowZ: HttpHandler): HttpHandler =
-      flakyZ.disconnect.race(slowZ.disconnect).map(upper)
+      flakyZ.disconnect.race(slowZ.disconnect)
 
     val server = for
       maybePort <- env("PORT")

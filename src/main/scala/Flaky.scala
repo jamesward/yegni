@@ -35,8 +35,11 @@ object Flaky extends App:
 
   override def run(args: List[String]) =
     val server = for
-      port <- env("PORT")
-      s <- HttpServer.serve(port.map(_.toInt).getOrElse(8081))("/flaky" -> handler, "/" -> handler)
+      maybePort <- env("PORT")
+      port = maybePort.map(_.toInt).getOrElse(8081)
+      homeRoute = "/" -> handler
+      flakyRoute = "/flaky" -> handler
+      s <- HttpServer.serve(port)(homeRoute, flakyRoute)
     yield s
 
     server.exitCode

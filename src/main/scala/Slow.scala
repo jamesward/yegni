@@ -33,8 +33,11 @@ object Slow extends App:
         HttpResponse(s"hello, slow.  We took: $delay millisconds.  Hope you got a coffee.")
 
     val server = for
-      port <- env("PORT")
-      s    <- HttpServer.serve(port.map(_.toInt).getOrElse(8082))("/slow" -> handler, "/" -> handler)
+      maybePort <- env("PORT")
+      port = maybePort.map(_.toInt).getOrElse(8082)
+      homeRoute = "/" -> handler
+      slowRoute = "/slow" -> handler
+      s <- HttpServer.serve(port)(homeRoute, slowRoute)
     yield s
 
     server.exitCode
