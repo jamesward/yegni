@@ -42,34 +42,7 @@ docker run -it \
 
 ## TODO
 
-- WebApp GraalVM
-- OpenTelemetry w/ GraalVM
 - Scala lazy val unsafe GraalVM weirdness (bug?)
-
-## Notes
-
-Things can fail
- - microservice can be flaky or sometimes slow
-
-Lets start with something easy
- - stdout
-
-Effect systems making it easy to handle / recover from unexpected errors 
- - stdout
-
-Flaky server
- - Http handlers as effects
- - graalvm ready
-   - no magic / reflection
-
-Server-to-service
- - sauerkraut (type class derivation)
-
-Observability
-
-Retry
-
-
 
 
 ## How to send trace context

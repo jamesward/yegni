@@ -1,5 +1,6 @@
 import scala.List
 import java.lang.String
+import MyConsole.*
 
 object ItWontFailZ extends zio.App:
 

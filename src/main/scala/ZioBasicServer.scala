@@ -1,4 +1,4 @@
-import services._
+import services.*
 
 import scala.{
   Any,
