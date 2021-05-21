@@ -20,6 +20,8 @@ javacOptions ++= Seq("-source", "11", "-target", "11")
 scalacOptions += "-release:11"
 scalacOptions += "-Yno-imports"
 
+run / fork := true
+
 reStart / mainClass := Some("ZioWebApp")
 
 Compile / packageDoc / publishArtifact := false
